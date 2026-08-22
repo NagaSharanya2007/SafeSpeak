@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import LandingScreen from './components/LandingScreen';
-import TopicPicker from './components/TopicPicker';
+import OnboardingFlow from './components/OnboardingFlow';
 import WaitingScreen from './components/WaitingScreen';
 import ChatRoom from './components/ChatRoom';
 import About from './components/About';
@@ -49,9 +49,10 @@ function App() {
     setUserPreferences(prefs);
     setStep(3);
     socket.emit('find_peer', { 
-      topic: prefs.topic, 
-      language: prefs.language, 
-      emergencyContact: prefs.emergencyContact 
+      context: prefs.context, 
+      mood: prefs.mood, 
+      interest: prefs.interest,
+      language: prefs.language
     });
   };
 
@@ -78,7 +79,7 @@ function App() {
         )}
 
         {step === 1 && <LandingScreen onStart={handleStart} onAbout={() => setStep(5)} />}
-        {step === 2 && <TopicPicker onProceed={handleProceed} />}
+        {step === 2 && <OnboardingFlow onProceed={handleProceed} />}
         {step === 3 && <WaitingScreen onCancel={handleCancelWait} />}
         {step === 4 && (
           <ChatRoom 
