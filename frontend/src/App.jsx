@@ -59,9 +59,11 @@ function App() {
       context: prefs.context, 
       mood: prefs.mood, 
       interest: prefs.interest,
-      language: prefs.language
+      language: prefs.language,
+      emergencyContact: prefs.emergencyContact || ''
     });
   };
+
 
   const handleCancelWait = () => {
     setStep(2);
@@ -125,6 +127,7 @@ function App() {
                 <ChatRoom 
                   peerInfo={peerInfo} 
                   userLanguage={userPreferences?.language || 'en'}
+                  emergencyContact={userPreferences?.emergencyContact || ''}
                   messages={messages} 
                   setMessages={setMessages} 
                   onLeave={() => {
@@ -133,6 +136,7 @@ function App() {
                     setMessages([]);
                   }}
                 />
+
               </div>
             </div>
           )}

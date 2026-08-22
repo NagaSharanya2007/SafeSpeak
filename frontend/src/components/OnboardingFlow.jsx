@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown, LockKeyhole } from 'lucide-react';
 
 export default function OnboardingFlow({ onProceed }) {
   const [step, setStep] = useState(1);
@@ -7,6 +7,7 @@ export default function OnboardingFlow({ onProceed }) {
   const [mood, setMood] = useState('');
   const [interest, setInterest] = useState('');
   const [language, setLanguage] = useState('en'); // Default to en, matching previous logic
+  const [emergencyContact, setEmergencyContact] = useState('');
 
   const contextOptions = ["Placements & Exams", "Loneliness", "Family Pressure", "General Anxiety"];
   
@@ -27,8 +28,9 @@ export default function OnboardingFlow({ onProceed }) {
   };
 
   const handleConnect = () => {
-    onProceed({ context, mood, interest, language });
+    onProceed({ context, mood, interest, language, emergencyContact });
   };
+
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-y-auto px-5 py-10 text-[#f6f2e9]">
@@ -139,6 +141,21 @@ export default function OnboardingFlow({ onProceed }) {
               </div>
             </div>
 
+            <div className="mb-6 text-left">
+              <label className="mb-3 ml-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[#A3C4AC]">
+                <span>Emergency Contact:</span>
+                <span className="rounded border border-white/10 px-2 py-0.5 text-[10px] font-normal tracking-normal text-[#70817a]">Optional</span>
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g., +91 9876543210 or emergency email"
+                value={emergencyContact}
+                onChange={(e) => setEmergencyContact(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 font-medium text-[#f6f2e9] outline-none transition focus:border-[#F28C69] placeholder:text-[#70817a]"
+              />
+              <p className="ml-1 mt-2 flex items-center gap-1 text-xs text-[#70817a]"><LockKeyhole size={12} /> Only contacted if immediate safety risks are detected.</p>
+            </div>
+
             <button 
               disabled={!interest}
               onClick={handleConnect}
@@ -146,6 +163,7 @@ export default function OnboardingFlow({ onProceed }) {
             >
               Connect Now <ArrowRight size={18} className="transition group-hover:translate-x-1" />
             </button>
+
           </div>
         )}
 

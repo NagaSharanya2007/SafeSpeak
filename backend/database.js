@@ -14,7 +14,21 @@ const db = new sqlite3.Database(dbPath, (err) => {
       emergency_contact TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    db.run(`CREATE TABLE IF NOT EXISTS blocked_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      blocked_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS emergency_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      socket_id TEXT,
+      contact TEXT,
+      risk_level TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   }
 });
 
 module.exports = db;
+
