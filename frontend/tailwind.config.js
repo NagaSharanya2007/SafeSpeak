@@ -6,14 +6,29 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        playfair: ['"Playfair Display"', 'serif'],
+        sans: ['Inter', 'sans-serif'],
+      },
       colors: {
-        // Dark, calming color palette (slate and emerald)
-        primary: "#0f172a", // slate-900
-        secondary: "#1e293b", // slate-800
-        accent: "#10b981", // emerald-500
-        accentHover: "#059669", // emerald-600
-        textLight: "#f8fafc", // slate-50
-        textMuted: "#94a3b8", // slate-400
+        primary: "#F2EFE9", // warm beige background
+        secondary: "#A3C4AC", // sage green (selected state)
+        secondaryLight: "#D1DDD3", // lighter sage
+        accent: "#F28C69", // terracotta orange
+        accentHover: "#D66B4E", // darker terracotta
+        textLight: "#1E293B", // dark olive/charcoal for main text
+        textMuted: "#475569", // muted olive for subtext
+      },
+      animation: {
+        blob: "blob 7s infinite",
+      },
+      keyframes: {
+        blob: {
+          "0%": { transform: "translate(0px, 0px) scale(1)" },
+          "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+          "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+          "100%": { transform: "translate(0px, 0px) scale(1)" },
+        },
       }
     },
   },

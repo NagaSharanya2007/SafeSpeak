@@ -1,6 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  font-family: 'Manrope', sans-serif;
+  color: #f6f2e9;
+  background: #101a1a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: #101a1a; }
+button, input, select { font: inherit; }
+
+@layer components {
+  .app-shell {
+    background: radial-gradient(circle at 12% 10%, rgba(217, 105, 75, 0.20), transparent 28%), radial-gradient(circle at 88% 86%, rgba(145, 187, 142, 0.16), transparent 30%), #101a1a;
+  }
+  .ambient-grid {
+    background-image: linear-gradient(rgba(246,242,233,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(246,242,233,.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black, transparent 85%);
+  }
+  .ambient-orb { animation: float 10s ease-in-out infinite; transform: translateZ(0); }
+  .ambient-orb-delayed { animation: float 13s ease-in-out -4s infinite reverse; transform: translateZ(0); }
+  .reveal { animation: reveal .7s cubic-bezier(.22, 1, .36, 1) both; }
+  .reveal-delay-1 { animation-delay: .1s; }
+  .reveal-delay-2 { animation-delay: .2s; }
+  .reveal-delay-3 { animation-delay: .3s; }
+  .glass-panel { background: rgba(22, 36, 35, .72); border: 1px solid rgba(246,242,233,.12); box-shadow: 0 24px 80px rgba(0,0,0,.24); backdrop-filter: blur(18px); }
+}
+
+@keyframes float { 0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); } 50% { transform: translate3d(18px, -24px, 0) rotate(8deg); } }
+@keyframes reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; } }
 
 @layer base {
   body {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
-import { Send, Globe2 } from 'lucide-react';
+import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles } from 'lucide-react';
 
 export default function ChatRoom({ peerInfo, messages, setMessages }) {
   const [inputText, setInputText] = useState('');
@@ -39,21 +39,22 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-primary text-textLight relative">
+    <div className="app-shell relative flex h-full w-full max-w-5xl flex-col text-[#f6f2e9]">
       {/* Sticky Header */}
-      <div className="bg-secondary p-3 text-center border-b border-slate-800 shadow-sm z-10 flex flex-col items-center sticky top-0">
-        <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-1">
+      <div className="glass-panel sticky top-0 z-10 flex flex-col items-center border-x-0 border-t-0 p-4 text-center">
+        <p className="mb-1 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[.18em] text-[#e8795d]">
+          <Sparkles size={12} />
           Topic: {peerInfo?.topic || 'General'}
         </p>
-        <p className="text-[10px] text-textMuted flex items-center gap-1">
-          <Globe2 size={12} /> Auto-translating from {peerLangName}
+        <p className="flex items-center gap-1 text-[10px] text-[#91bb8e]">
+          <Globe2 size={12} /> Live translation from {peerLangName} <LockKeyhole size={11} className="ml-2" /> encrypted room
         </p>
       </div>
 
       {/* Scrollable Message List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
-        <div className="text-center text-xs text-textMuted my-4 bg-slate-800/50 py-2 rounded-full w-3/4 mx-auto border border-slate-700/50">
-          You are connected securely. Say hello!
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 sm:px-[10%]">
+        <div className="mx-auto my-4 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[.04] px-4 py-2 text-center font-mono text-[10px] uppercase tracking-wider text-[#70817a]">
+          <CheckCheck size={13} className="text-[#91bb8e]" /> Secure room opened
         </div>
         
         {messages.map((msg, idx) => {
@@ -61,17 +62,17 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
           
           return (
             <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] p-3 rounded-2xl ${
+              <div className={`max-w-[80%] rounded-2xl p-4 ${
                 isMe 
-                  ? 'bg-blue-600 text-white rounded-br-none shadow-[0_4px_15px_rgba(37,99,235,0.3)]' 
-                  : 'bg-secondary border border-slate-700 text-textLight rounded-bl-none shadow-md'
+                  ? 'rounded-br-sm bg-[#e8795d] text-[#101a1a] shadow-[0_8px_25px_rgba(232,121,93,.15)]' 
+                  : 'glass-panel rounded-bl-sm text-[#f6f2e9]'
               }`}>
                 {/* Translated/Primary Text */}
                 <p className="text-sm leading-relaxed">{msg.translatedText}</p>
                 
                 {/* Original Text Subtitle (Only show if it was actually translated and not sent by me) */}
                 {!isMe && msg.originalText !== msg.translatedText && (
-                  <p className="text-[10px] opacity-70 italic mt-1 pt-1 border-t border-slate-600/30">
+                    <p className="mt-2 border-t border-black/10 pt-1 text-[10px] italic opacity-70">
                     {msg.originalText}
                   </p>
                 )}
@@ -83,7 +84,7 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
       </div>
       
       {/* Fixed Bottom Input Bar */}
-      <div className="absolute bottom-0 w-full p-4 bg-secondary border-t border-slate-800 shadow-[0_-10px_20px_rgba(0,0,0,0.2)]">
+      <div className="glass-panel absolute bottom-0 w-full border-x-0 border-b-0 p-4 shadow-[0_-15px_30px_rgba(0,0,0,.2)] sm:px-[10%]">
         <div className="flex gap-2">
           <input 
             type="text" 
@@ -91,12 +92,12 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-primary border border-slate-700 rounded-full px-5 py-3 text-sm text-textLight focus:outline-none focus:border-accent shadow-inner transition-colors placeholder:text-slate-500"
+            className="flex-1 rounded-full border border-white/10 bg-[#101a1a]/70 px-5 py-3 text-sm text-[#f6f2e9] outline-none transition focus:border-[#e8795d] placeholder:text-[#70817a]"
           />
           <button 
             onClick={handleSend}
             disabled={!inputText.trim()}
-            className="bg-accent disabled:opacity-50 disabled:bg-slate-600 disabled:cursor-not-allowed hover:bg-accentHover text-white p-3 rounded-full w-12 h-12 flex items-center justify-center active:scale-95 transition-all shadow-lg"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e8795d] p-3 text-[#101a1a] shadow-lg transition-all hover:bg-[#f28e73] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Send size={18} className={inputText.trim() ? "translate-x-0.5" : ""} />
           </button>
