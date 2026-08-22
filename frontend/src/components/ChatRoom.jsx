@@ -1,10 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
-import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles } from 'lucide-react';
+import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff } from 'lucide-react';
 
 export default function ChatRoom({ peerInfo, messages, setMessages }) {
   const [inputText, setInputText] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => setIsListening(true);
+      
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript.trim()) {
+          // Auto-send the transcribed text
+          socket.emit('send_message', { text: transcript.trim() });
+        }
+      };
+
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+      
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      try {
+        recognitionRef.current?.start();
+      } catch (err) {
+        console.error("Could not start speech recognition", err);
+      }
+    }
+  };
 
   // Language display map
   const langNames = { en: 'English', te: 'Telugu', hinglish: 'Hinglish' };
@@ -86,9 +124,21 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
       {/* Fixed Bottom Input Bar */}
       <div className="glass-panel absolute bottom-0 w-full border-x-0 border-b-0 p-4 shadow-[0_-15px_30px_rgba(0,0,0,.2)] sm:px-[10%]">
         <div className="flex gap-2">
+          <button 
+            onClick={toggleListening}
+            title="Voice to Text (Auto Send)"
+            className={`flex h-12 w-12 items-center justify-center rounded-full p-3 shadow-lg transition-all active:scale-95 ${
+              isListening 
+                ? 'bg-red-500 text-white animate-pulse' 
+                : 'bg-white/10 text-[#f6f2e9] hover:bg-white/20'
+            }`}
+          >
+            {isListening ? <Mic size={18} /> : <MicOff size={18} />}
+          </button>
+          
           <input 
             type="text" 
-            placeholder="Type a message..." 
+            placeholder={isListening ? "Listening... (will send automatically)" : "Type a message..."} 
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
