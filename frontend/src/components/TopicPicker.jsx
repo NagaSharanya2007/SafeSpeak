@@ -21,7 +21,7 @@ export default function TopicPicker({ onProceed }) {
   };
 
   return (
-    <div className="flex min-h-[100dvh] w-full items-center justify-center overflow-y-auto px-5 py-10 text-[#f6f2e9]">
+    <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-y-auto px-5 py-10 text-[#f6f2e9]">
       <div className="flex w-full max-w-3xl flex-col">
         
         <div className="mb-10 reveal">
