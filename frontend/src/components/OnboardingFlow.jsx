@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ArrowLeft, ChevronDown, User, Phone } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown, User, Phone, LockKeyhole, Mail, Database } from 'lucide-react';
+import ResearcherDashboard from './ResearcherDashboard';
 
 const generateUUID = () => {
   return 'user_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
@@ -21,6 +22,11 @@ export default function OnboardingFlow({ onProceed }) {
   const [mood, setMood] = useState('');
   const [interest, setInterest] = useState('');
   const [language, setLanguage] = useState('en');
+
+  const [viewMode, setViewMode] = useState('support'); // 'support', 'researcher_login', 'dashboard'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [researchError, setResearchError] = useState('');
 
   const contextOptions = ["Placements & Exams", "Loneliness", "Family Pressure", "General Anxiety"];
   
@@ -60,12 +66,77 @@ export default function OnboardingFlow({ onProceed }) {
     });
   };
 
+  const handleResearchLogin = async (e) => {
+    e.preventDefault();
+    setResearchError('');
+    try {
+      const res = await fetch('http://localhost:3000/api/research/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setViewMode('dashboard');
+      } else {
+        setResearchError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setResearchError('Network error');
+    }
+  };
+
   if (step === -1) return null; // Loading state
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-y-auto px-5 py-10 text-[#f6f2e9]">
       <div className="flex w-full max-w-2xl flex-col bg-white/[.03] p-8 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm">
         
+        {/* Toggle */}
+        {viewMode !== 'dashboard' && (
+          <div className="mb-8 flex self-center rounded-full bg-white/5 p-1 border border-white/10">
+            <button 
+              onClick={() => setViewMode('support')}
+              className={`rounded-full px-6 py-2 text-sm font-bold transition ${viewMode === 'support' ? 'bg-[#e8795d] text-[#101a1a]' : 'text-white/50 hover:text-white'}`}
+            >
+              Seek Support
+            </button>
+            <button 
+              onClick={() => setViewMode('researcher_login')}
+              className={`rounded-full px-6 py-2 text-sm font-bold transition ${viewMode === 'researcher_login' ? 'bg-[#e8795d] text-[#101a1a]' : 'text-white/50 hover:text-white'}`}
+            >
+              Researcher Portal
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'dashboard' ? (
+          <ResearcherDashboard />
+        ) : viewMode === 'researcher_login' ? (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-md mx-auto text-center">
+            <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-full bg-[#e8795d]/20 text-[#e8795d]">
+              <Database size={28} />
+            </div>
+            <h2 className="font-playfair text-3xl font-bold mb-2">Researcher Access</h2>
+            <p className="text-[#A3C4AC] mb-8 text-sm">Secure access to synthetic, anonymized dataset.</p>
+            
+            <form onSubmit={handleResearchLogin} className="flex flex-col gap-4 text-left">
+              {researchError && <div className="text-red-400 text-sm">{researchError}</div>}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-4 text-white/50"><Mail size={16} /></div>
+                <input type="email" required placeholder="Institutional Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 pl-11 pr-4 py-3 text-sm text-[#f6f2e9] outline-none transition focus:border-[#e8795d]" />
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-4 text-white/50"><LockKeyhole size={16} /></div>
+                <input type="password" required placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 pl-11 pr-4 py-3 text-sm text-[#f6f2e9] outline-none transition focus:border-[#e8795d]" />
+              </div>
+              <button type="submit" className="mt-4 w-full rounded-2xl bg-[#e8795d] py-3.5 font-bold text-[#101a1a] shadow-[0_10px_30px_rgba(232,121,93,.2)] transition hover:-translate-y-1 hover:bg-[#f28e73]">
+                Access Database
+              </button>
+            </form>
+          </div>
+        ) : (
+          <>
         {/* Welcome Back Toast for returning users */}
         {profile && step === 1 && (
           <div className="mb-6 flex items-center justify-center gap-2 rounded-xl bg-[#A3C4AC]/10 p-3 text-sm font-medium text-[#A3C4AC] border border-[#A3C4AC]/20 animate-in fade-in slide-in-from-top-2">
@@ -204,6 +275,9 @@ export default function OnboardingFlow({ onProceed }) {
               </button>
             ) : <div></div>}
           </div>
+        )}
+
+          </>
         )}
 
       </div>

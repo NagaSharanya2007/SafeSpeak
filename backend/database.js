@@ -15,6 +15,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
       strikes INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    db.run(`CREATE TABLE IF NOT EXISTS research_trends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      primary_trigger TEXT,
+      root_cause_theme TEXT,
+      resolution_state TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   }
 });
 

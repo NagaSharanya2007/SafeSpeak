@@ -12,6 +12,7 @@ const db = require('./database');
 const { translateText } = require('./services/translationService');
 const crypto = require('crypto');
 const nlp = require('compromise');
+const { analyzeTranscript } = require('./services/DataAltruismService');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -24,6 +25,7 @@ const io = new Server(server, {
 // In-memory arrays/maps for matchmaking state
 let waitingQueue = [];
 let activeRooms = new Map();
+let activeRoomMessages = new Map(); // Store transcripts for LLM analysis
 
 // Anti-Bullying Shield State
 const strikeCounts = new Map();
@@ -71,7 +73,25 @@ app.post('/api/login', (req, res) => {
       
       res.json({ success: true, user: row });
     }
+    }
   );
+});
+
+// Researcher Portal APIs
+app.post('/api/research/login', (req, res) => {
+  const { email, password } = req.body;
+  if (email === 'admin@safespeak.org' && password === 'password') {
+    res.json({ success: true, token: 'researcher-jwt-mock' });
+  } else {
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
+
+app.get('/api/research/reports', (req, res) => {
+  db.all(`SELECT * FROM research_trends ORDER BY created_at DESC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    res.json({ success: true, reports: rows });
+  });
 });
 
 const safetyCheck = (text) => {
@@ -196,6 +216,9 @@ const matchUsers = () => {
     u1.socket.emit('matched', { roomId, topic: u2.interest, peerId: u2.id, peerLanguage: u2.language, peerAlias: u2.alias });
     u2.socket.emit('matched', { roomId, topic: u1.interest, peerId: u1.id, peerLanguage: u1.language, peerAlias: u1.alias });
 
+    // Initialize transcript storage for the LLM
+    activeRoomMessages.set(roomId, []);
+
     // Recursively try to match remaining users
     matchUsers();
   }
@@ -250,7 +273,15 @@ io.on('connection', (socket) => {
     // 4. Abandoned Match: If they were in an active chat, alert the peer
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
-      const { peerId } = roomInfo;
+      const { peerId, roomId } = roomInfo;
+      
+      // Flush transcript to LLM
+      const messages = activeRoomMessages.get(roomId);
+      if (messages && messages.length > 0) {
+        analyzeTranscript(messages);
+        activeRoomMessages.delete(roomId);
+      }
+      
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       
@@ -262,7 +293,15 @@ io.on('connection', (socket) => {
   socket.on('leave_room', () => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
-      const { peerId } = roomInfo;
+      const { peerId, roomId } = roomInfo;
+      
+      // Flush transcript to LLM
+      const messages = activeRoomMessages.get(roomId);
+      if (messages && messages.length > 0) {
+        analyzeTranscript(messages);
+        activeRoomMessages.delete(roomId);
+      }
+      
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       io.to(peerId).emit('peer_disconnected');
@@ -272,7 +311,15 @@ io.on('connection', (socket) => {
   socket.on('block_user', () => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
-      const { peerId, peerUserId } = roomInfo;
+      const { peerId, peerUserId, roomId } = roomInfo;
+      
+      // Flush transcript to LLM
+      const messages = activeRoomMessages.get(roomId);
+      if (messages && messages.length > 0) {
+        analyzeTranscript(messages);
+        activeRoomMessages.delete(roomId);
+      }
+      
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       io.to(peerId).emit('peer_disconnected');
@@ -298,7 +345,11 @@ io.on('connection', (socket) => {
     const roomInfo = activeRooms.get(socket.id);
     if (!roomInfo) return; // User is not in an active chat
 
-    const { peerId, language: myLanguage, peerLanguage, userId } = roomInfo;
+    const { peerId, language: myLanguage, peerLanguage, userId, roomId, alias } = roomInfo;
+    
+    // Store message in memory for LLM analysis
+    const msgs = activeRoomMessages.get(roomId);
+    if (msgs) msgs.push(`${alias}: ${text}`);
     
     // Attempt real-time translation
     const translatedText = await translateText(text, myLanguage, peerLanguage);
