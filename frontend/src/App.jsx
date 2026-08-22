@@ -76,30 +76,34 @@ function App() {
       <div className="ambient-orb-delayed pointer-events-none fixed -right-24 bottom-0 z-0 h-96 w-96 rounded-full border border-[#91bb8e]/20 bg-[#91bb8e]/10 blur-sm" />
 
       {/* Sidebar Component */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen}
-        onSelectChat={(session) => {
-          setSelectedHistory(session);
-          setStep(7); // 7: Read Only History
-          if (window.innerWidth < 768) setIsSidebarOpen(false);
-        }}
-        onNewChat={() => {
-          setSelectedHistory(null);
-          setStep(1);
-          if (window.innerWidth < 768) setIsSidebarOpen(false);
-        }}
-      />
+      {(step === 4 || step === 7) && (
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen}
+          onSelectChat={(session) => {
+            setSelectedHistory(session);
+            setStep(7); // 7: Read Only History
+            if (window.innerWidth < 768) setIsSidebarOpen(false);
+          }}
+          onNewChat={() => {
+            setSelectedHistory(null);
+            setStep(1);
+            if (window.innerWidth < 768) setIsSidebarOpen(false);
+          }}
+        />
+      )}
       
       {/* Main App Container */}
       <div className="flex-1 overflow-y-auto relative z-10 w-full flex flex-col">
         {/* Mobile Hamburger Menu */}
-        <button 
-          onClick={() => setIsSidebarOpen(true)} 
-          className="md:hidden absolute top-4 left-4 z-40 p-2 text-[#b7c5b4] bg-[#101a1a]/80 backdrop-blur-md rounded-xl shadow-sm border border-white/10 hover:bg-[#101a1a]"
-        >
-          <Menu size={20} />
-        </button>
+        {(step === 4 || step === 7) && (
+          <button 
+            onClick={() => setIsSidebarOpen(true)} 
+            className="md:hidden absolute top-4 left-4 z-40 p-2 text-[#b7c5b4] bg-[#101a1a]/80 backdrop-blur-md rounded-xl shadow-sm border border-white/10 hover:bg-[#101a1a]"
+          >
+            <Menu size={20} />
+          </button>
+        )}
 
         {!isConnected && (
           <div className="absolute inset-0 bg-[#101a1a]/90 z-50 flex items-center justify-center text-[#f6f2e9] backdrop-blur-md font-sans">
@@ -112,7 +116,7 @@ function App() {
 
         {/* View Routing */}
         <div className="flex-1 w-full flex flex-col items-center justify-center transition-all duration-300">
-          {step === 1 && <LandingScreen onStart={handleStart} onAbout={() => setStep(5)} />}
+          {step === 1 && <LandingScreen onStart={handleStart} onAbout={() => setStep(5)} onHistory={() => setStep(7)} />}
           {step === 2 && <OnboardingFlow onProceed={handleProceed} />}
           {step === 3 && <WaitingScreen onCancel={handleCancelWait} />}
           {step === 4 && (

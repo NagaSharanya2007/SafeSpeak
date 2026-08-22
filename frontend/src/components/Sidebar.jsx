@@ -45,20 +45,20 @@ export default function Sidebar({ isOpen, setIsOpen, onSelectChat, onNewChat }) 
       )}
 
       {/* Sidebar Panel */}
-      <div className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#FDF3EB] border-r border-[#1A362B]/10 shadow-xl transition-transform duration-300 md:static md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#101a1a]/95 backdrop-blur-xl border-r border-white/10 shadow-2xl transition-transform duration-300 md:static md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
         {/* Header / New Chat */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1A362B]/10">
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
           <button 
             onClick={onNewChat}
-            className="flex flex-1 items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#1A362B] shadow-sm transition-colors hover:bg-[#FFF8F3] border border-[#1A362B]/5"
+            className="flex flex-1 items-center gap-2 rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-[#f6f2e9] shadow-sm transition-colors hover:bg-white/10 border border-white/5"
           >
             <Plus size={16} />
             New Chat
           </button>
           <button 
             onClick={() => setIsOpen(false)}
-            className="ml-2 rounded-full p-2 text-[#1A362B]/70 hover:bg-black/5 md:hidden"
+            className="ml-2 rounded-full p-2 text-[#b7c5b4] hover:bg-white/10 md:hidden"
           >
             <X size={20} />
           </button>
@@ -66,12 +66,12 @@ export default function Sidebar({ isOpen, setIsOpen, onSelectChat, onNewChat }) 
 
         {/* History List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <div className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[#1A362B]/50">
+          <div className="mb-2 px-2 text-xs font-bold uppercase tracking-wider text-[#b7c5b4]/60">
             Recent
           </div>
           
           {history.length === 0 ? (
-            <div className="px-2 py-4 text-sm text-[#1A362B]/50 text-center italic">
+            <div className="px-2 py-4 text-sm text-[#b7c5b4]/60 text-center italic">
               No past chats yet.
             </div>
           ) : (
@@ -79,13 +79,13 @@ export default function Sidebar({ isOpen, setIsOpen, onSelectChat, onNewChat }) 
               <button
                 key={session.id}
                 onClick={() => onSelectChat(session)}
-                className="group flex w-full flex-col gap-1 rounded-xl p-3 text-left transition-colors hover:bg-black/5"
+                className="group flex w-full flex-col gap-1 rounded-xl p-3 text-left transition-colors hover:bg-white/5 border border-transparent hover:border-white/5"
               >
-                <div className="flex items-center gap-2 text-sm font-medium text-[#1A362B]">
-                  <MessageSquare size={14} className="opacity-70" />
+                <div className="flex items-center gap-2 text-sm font-medium text-[#f6f2e9]">
+                  <MessageSquare size={14} className="opacity-70 text-[#b7c5b4]" />
                   <span className="truncate">Chat Session</span>
                 </div>
-                <div className="flex items-center gap-1 pl-6 text-xs text-[#1A362B]/50">
+                <div className="flex items-center gap-1 pl-6 text-xs text-[#b7c5b4]">
                   <Clock size={10} />
                   {new Date(session.id).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                 </div>
@@ -96,10 +96,10 @@ export default function Sidebar({ isOpen, setIsOpen, onSelectChat, onNewChat }) 
 
         {/* Footer / Clear History */}
         {history.length > 0 && (
-          <div className="p-4 border-t border-[#1A362B]/10">
+          <div className="p-4 border-t border-white/10">
             <button 
               onClick={clearHistory}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-900/10 px-4 py-3 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8795d]/20 px-4 py-3 text-sm font-semibold text-[#e8795d] transition-colors hover:bg-[#e8795d]/10"
             >
               <Trash2 size={16} />
               Clear History
