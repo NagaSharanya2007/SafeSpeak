@@ -129,9 +129,9 @@ export default function OnboardingFlow({ onProceed }) {
                   onChange={(e) => setLanguage(e.target.value)}
                   className="w-full appearance-none rounded-2xl border border-white/10 bg-white/5 px-5 py-4 font-medium text-[#f6f2e9] outline-none transition focus:border-[#F28C69]"
                 >
-                  <option value="en">English</option>
-                  <option value="hi">Hindi</option>
-                  <option value="te">Telugu</option>
+                  <option value="en" className="bg-[#101a1a] text-white">English</option>
+                  <option value="hi" className="bg-[#101a1a] text-white">Hindi</option>
+                  <option value="te" className="bg-[#101a1a] text-white">Telugu</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-6 text-[#A3C4AC]">
                   <ChevronDown size={17} />
