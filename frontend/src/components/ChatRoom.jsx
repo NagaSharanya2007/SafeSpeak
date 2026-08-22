@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
 import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff } from 'lucide-react';
 
-export default function ChatRoom({ peerInfo, messages, setMessages }) {
+export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages }) {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
@@ -14,6 +14,11 @@ export default function ChatRoom({ peerInfo, messages, setMessages }) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
+      
+      // Set the recognition language so it captures Hindi/Telugu correctly
+      if (userLanguage === 'te') recognition.lang = 'te-IN';
+      else if (userLanguage === 'hi') recognition.lang = 'hi-IN';
+      else recognition.lang = 'en-US';
 
       recognition.onstart = () => setIsListening(true);
       

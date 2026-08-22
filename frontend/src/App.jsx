@@ -84,6 +84,7 @@ function App() {
         {step === 4 && (
           <ChatRoom 
             peerInfo={peerInfo} 
+            userLanguage={userPreferences?.language || 'en'}
             messages={messages} 
             setMessages={setMessages} 
           />
