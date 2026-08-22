@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
-import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff } from 'lucide-react';
+import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff, ShieldAlert, Eye, DoorOpen, Ban } from 'lucide-react';
 
-export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages }) {
+export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages, onLeave }) {
   const [sessionId] = useState(() => Date.now());
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -59,10 +59,41 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
     const handleReceive = (message) => {
       setMessages((prev) => [...prev, message]);
     };
+    // Anti-Bullying Listeners
+    const handleSenderWarning = (data) => {
+      setMessages(prev => [...prev, {
+        type: 'warning',
+        text: `⚠️ This message violates our safety guidelines. Please reconsider how you speak to your peer. (Warning ${data.strikeCount} of 5). Upon 5 warnings, you will be restricted.`
+      }]);
+    };
+
+    const handleSenderRestricted = () => {
+      setMessages(prev => [...prev, {
+        type: 'warning',
+        text: `⚠️ You have been restricted from SafeSpeak for repeatedly violating our safety guidelines. You can no longer send messages.`
+      }]);
+    };
+
+    const handleFlaggedIntercept = (data) => {
+      setMessages(prev => [...prev, {
+        type: 'intercepted',
+        senderId: data.senderId,
+        originalText: data.originalText,
+        translatedText: data.translatedText,
+        revealed: false
+      }]);
+    };
+
     socket.on('receive_message', handleReceive);
-    
+    socket.on('sender_warning', handleSenderWarning);
+    socket.on('sender_restricted', handleSenderRestricted);
+    socket.on('flagged_intercept', handleFlaggedIntercept);
+
     return () => {
       socket.off('receive_message', handleReceive);
+      socket.off('sender_warning', handleSenderWarning);
+      socket.off('sender_restricted', handleSenderRestricted);
+      socket.off('flagged_intercept', handleFlaggedIntercept);
     };
   }, [setMessages]);
 
@@ -109,6 +140,24 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
     if (e.key === 'Enter') handleSend();
   };
 
+  const revealMessage = (index) => {
+    setMessages(prev => {
+      const newMsgs = [...prev];
+      newMsgs[index].revealed = true;
+      return newMsgs;
+    });
+  };
+
+  const handleDisconnect = () => {
+    socket.emit('leave_room');
+    if (onLeave) onLeave();
+  };
+
+  const handleBlockUser = () => {
+    socket.emit('block_user');
+    if (onLeave) onLeave();
+  };
+
   return (
     <div className="app-shell relative flex h-full w-full max-w-5xl flex-col text-[#f6f2e9]">
       {/* Sticky Header */}
@@ -129,6 +178,57 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
         </div>
         
         {messages.map((msg, idx) => {
+          if (msg.type === 'warning') {
+            return (
+              <div key={idx} className="flex w-full justify-center my-4">
+                <div className="max-w-[85%] rounded-xl bg-red-900/20 p-3 text-sm font-medium text-red-200 border border-red-500/30 text-center">
+                  {msg.text}
+                </div>
+              </div>
+            );
+          }
+
+          if (msg.type === 'intercepted') {
+            return (
+              <div key={idx} className="flex w-full justify-start my-4">
+                <div className="max-w-[90%] rounded-2xl bg-[#1A362B]/10 p-5 shadow-sm border border-[#e8795d]/20">
+                  <div className="flex items-center gap-2 text-[#e8795d] font-bold mb-3">
+                    <ShieldAlert size={18} />
+                    <span>System Intercept</span>
+                  </div>
+                  
+                  {!msg.revealed ? (
+                    <>
+                      <p className="text-[#f6f2e9]/80 font-medium mb-5">
+                        ⚠️ The system intercepted a potentially offensive message.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => revealMessage(idx)} className="flex items-center gap-1.5 rounded-full bg-[#f6f2e9]/10 px-4 py-2 text-xs font-bold text-[#f6f2e9] border border-[#f6f2e9]/10 hover:bg-[#f6f2e9]/20 transition-colors">
+                          <Eye size={14} /> Reveal Message
+                        </button>
+                        <button onClick={handleDisconnect} className="flex items-center gap-1.5 rounded-full bg-[#f6f2e9]/10 px-4 py-2 text-xs font-bold text-[#f6f2e9] border border-[#f6f2e9]/10 hover:bg-[#f6f2e9]/20 transition-colors">
+                          <DoorOpen size={14} /> Disconnect
+                        </button>
+                        <button onClick={handleBlockUser} className="flex items-center gap-1.5 rounded-full bg-[#e8795d] px-4 py-2 text-xs font-bold text-[#101a1a] border border-[#e8795d] hover:bg-[#f28e73] transition-colors">
+                          <Ban size={14} /> Block User
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl bg-[#101a1a] p-4 border border-[#e8795d]/30 text-[#f6f2e9]">
+                      <p className="font-sans text-[15px] leading-relaxed">{msg.translatedText}</p>
+                      {msg.originalText !== msg.translatedText && (
+                        <p className="mt-2 border-t border-[#f6f2e9]/10 pt-1 text-[11px] italic opacity-70">
+                          {msg.originalText}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
           const isMe = msg.senderId === socket.id;
           
           return (

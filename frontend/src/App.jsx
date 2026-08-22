@@ -127,6 +127,11 @@ function App() {
                   userLanguage={userPreferences?.language || 'en'}
                   messages={messages} 
                   setMessages={setMessages} 
+                  onLeave={() => {
+                    setStep(1);
+                    setPeerInfo(null);
+                    setMessages([]);
+                  }}
                 />
               </div>
             </div>
