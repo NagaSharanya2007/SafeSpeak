@@ -4,6 +4,7 @@ import OnboardingFlow from './components/OnboardingFlow';
 import WaitingScreen from './components/WaitingScreen';
 import ChatRoom from './components/ChatRoom';
 import About from './components/About';
+import ChatHistory from './components/ChatHistory';
 import { socket } from './socket';
 
 function App() {
@@ -78,7 +79,7 @@ function App() {
           </div>
         )}
 
-        {step === 1 && <LandingScreen onStart={handleStart} onAbout={() => setStep(5)} />}
+        {step === 1 && <LandingScreen onStart={handleStart} onAbout={() => setStep(5)} onHistory={() => setStep(6)} />}
         {step === 2 && <OnboardingFlow onProceed={handleProceed} />}
         {step === 3 && <WaitingScreen onCancel={handleCancelWait} />}
         {step === 4 && (
@@ -89,7 +90,12 @@ function App() {
             setMessages={setMessages} 
           />
         )}
-        {step === 5 && <About onEnter={handleStart} />}
+        {step === 5 && (
+          <About onEnter={() => setStep(1)} />
+        )}
+        {step === 6 && (
+          <ChatHistory onBack={() => setStep(1)} />
+        )}
       </div>
     </div>
   );

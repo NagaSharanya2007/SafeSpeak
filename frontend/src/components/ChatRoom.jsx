@@ -3,6 +3,7 @@ import { socket } from '../socket';
 import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff } from 'lucide-react';
 
 export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages }) {
+  const [sessionId] = useState(() => Date.now());
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
@@ -69,6 +70,33 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Sync messages to localStorage for Chat History
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    try {
+      const savedStr = localStorage.getItem('safespeak_history');
+      let history = savedStr ? JSON.parse(savedStr) : [];
+      
+      // Find current session or create it
+      const sessionIndex = history.findIndex(s => s.id === sessionId);
+      const formattedMessages = messages.map(msg => ({
+        ...msg,
+        isMe: msg.senderId === socket.id
+      }));
+
+      if (sessionIndex >= 0) {
+        history[sessionIndex].messages = formattedMessages;
+      } else {
+        history.push({ id: sessionId, messages: formattedMessages });
+      }
+
+      localStorage.setItem('safespeak_history', JSON.stringify(history));
+    } catch (e) {
+      console.error("Failed to save chat history", e);
+    }
+  }, [messages, sessionId]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;

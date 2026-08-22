@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, Globe2, HeartHandshake, LockKeyhole, Sparkles, Users } from 'lucide-react';
 
-export default function LandingScreen({ onStart, onAbout }) {
+export default function LandingScreen({ onStart, onAbout, onHistory }) {
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center px-5 py-10 text-center text-[#f6f2e9]">
       <div className="w-full max-w-5xl">
@@ -19,6 +19,7 @@ export default function LandingScreen({ onStart, onAbout }) {
             <div className="mt-9 flex items-center gap-4 reveal reveal-delay-3">
               <button onClick={onStart} className="group inline-flex items-center gap-4 rounded-full bg-[#e8795d] px-6 py-4 font-semibold text-[#101a1a] shadow-[0_12px_30px_rgba(232,121,93,.2)] transition hover:-translate-y-1 hover:bg-[#f28e73]">Enter SafeSpeak <span className="grid h-8 w-8 place-items-center rounded-full bg-[#101a1a] text-[#f6f2e9] transition group-hover:rotate-45"><ArrowUpRight size={16} /></span></button>
               <button onClick={onAbout} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-6 py-4 font-semibold text-[#f6f2e9] transition hover:bg-white/5 hover:border-white/20">About SafeSpeak</button>
+              <button onClick={onHistory} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-6 py-4 font-semibold text-[#f6f2e9] transition hover:bg-white/5 hover:border-white/20">Past Chats</button>
             </div>
           </div>
           <div className="glass-panel relative mx-auto aspect-square w-full max-w-[300px] rounded-[2rem] p-6 reveal reveal-delay-2 sm:max-w-[360px]">
