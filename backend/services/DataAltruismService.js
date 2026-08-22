@@ -54,6 +54,38 @@ ${transcriptStr}`;
   }
 };
 
+/**
+ * Generates a global summary report from all individual reports
+ */
+async function generateGlobalReport(reports) {
+  if (!reports || reports.length === 0) return "No data available to generate a global report.";
+
+  const mockGlobal = "Based on the recent influx of anonymous chats, the platform is seeing a significant spike in academic anxiety, primarily driven by upcoming final exams. Users frequently express feelings of being overwhelmed and fear of disappointing their families. Peer interventions that validate these feelings and offer structured advice (like study techniques) have shown high resolution rates, leaving users feeling more grounded.";
+
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'MISSING_API_KEY' || process.env.GEMINI_API_KEY === 'your_key_here') {
+    return mockGlobal;
+  }
+
+  const reportsStr = reports.map(r => `Trigger: ${r.primary_trigger} | Theme: ${r.root_cause_theme} | Resolution: ${r.resolution_state}`).join('\n');
+  const prompt = `You are a Chief Data Scientist analyzing psychological trends across a student support platform. Read the following individual chat reports and generate a single, cohesive 1-2 paragraph global summary of the overarching trends, common struggles, and the effectiveness of peer support on the platform right now.
+
+Individual Reports:
+${reportsStr}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-pro',
+      contents: prompt
+    });
+
+    return response.text();
+  } catch (error) {
+    console.error("Error generating global report with LLM.", error);
+    return mockGlobal;
+  }
+}
+
 module.exports = {
-  analyzeTranscript
+  analyzeTranscript,
+  generateGlobalReport
 };

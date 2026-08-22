@@ -48,6 +48,8 @@ export default function ResearcherDashboard() {
   };
 
   const [expandedId, setExpandedId] = useState(null);
+  const [globalSummary, setGlobalSummary] = useState(null);
+  const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);
 
   const handleDownload = () => {
     const jsonStr = JSON.stringify(reports, null, 2);
@@ -66,6 +68,23 @@ export default function ResearcherDashboard() {
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const handleGenerateGlobal = async () => {
+    setIsGeneratingGlobal(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/research/global-summary', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setGlobalSummary(data.summary);
+      } else {
+        alert("Failed to generate global summary.");
+      }
+    } catch (err) {
+      alert("Network error.");
+    } finally {
+      setIsGeneratingGlobal(false);
+    }
+  };
+
   return (
     <div className="flex w-full flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 text-[#f6f2e9] pb-20">
       <div className="flex items-center justify-between mb-8">
@@ -75,9 +94,17 @@ export default function ResearcherDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <button 
+            onClick={handleGenerateGlobal}
+            disabled={isGeneratingGlobal || reports.length === 0}
+            className="flex items-center gap-2 rounded-xl border border-[#A3C4AC]/40 bg-[#A3C4AC]/10 px-4 py-2 font-bold text-[#A3C4AC] shadow-lg transition hover:bg-[#A3C4AC]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles size={16} className={isGeneratingGlobal ? 'animate-spin' : ''} />
+            {isGeneratingGlobal ? 'Analyzing...' : 'Generate Global Summary'}
+          </button>
+          <button 
             onClick={handleExtract}
             disabled={isExtracting}
-            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2 font-bold text-[#A3C4AC] shadow-lg transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2 font-bold text-[#f6f2e9] shadow-lg transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Sparkles size={16} className={isExtracting ? 'animate-spin' : ''} />
             {isExtracting ? 'Extracting...' : 'Run AI Extraction'}
@@ -91,6 +118,17 @@ export default function ResearcherDashboard() {
           </button>
         </div>
       </div>
+
+      {globalSummary && (
+        <div className="mb-8 p-6 rounded-2xl border border-[#A3C4AC]/30 bg-gradient-to-br from-[#A3C4AC]/10 to-transparent shadow-lg animate-in fade-in slide-in-from-top-4">
+          <h3 className="flex items-center gap-2 font-playfair text-xl font-bold text-[#A3C4AC] mb-3">
+            <Sparkles size={20} /> Chief Data Scientist Report
+          </h3>
+          <p className="text-sm text-white/80 leading-relaxed font-mono whitespace-pre-wrap">
+            {globalSummary}
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center p-10"><span className="h-6 w-6 animate-pulse rounded-full bg-[#A3C4AC]" /></div>

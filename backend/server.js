@@ -12,7 +12,7 @@ const db = require('./database');
 const { translateText } = require('./services/translationService');
 const crypto = require('crypto');
 const nlp = require('compromise');
-const { analyzeTranscript } = require('./services/DataAltruismService');
+const { analyzeTranscript, generateGlobalReport } = require('./services/DataAltruismService');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -130,6 +130,25 @@ app.post('/api/research/extract', (req, res) => {
     }
     
     res.json({ success: true, processed: processedCount });
+  });
+});
+
+app.post('/api/research/global-summary', (req, res) => {
+  db.all(`SELECT extracted_report FROM chat_history WHERE status = 'processed'`, [], async (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    
+    if (rows.length === 0) {
+      return res.json({ success: true, summary: "Not enough processed data yet." });
+    }
+
+    try {
+      const reports = rows.map(row => JSON.parse(row.extracted_report));
+      const summary = await generateGlobalReport(reports);
+      res.json({ success: true, summary });
+    } catch (e) {
+      console.error("Failed to generate global summary:", e);
+      res.status(500).json({ error: 'Failed to generate summary' });
+    }
   });
 });
 
