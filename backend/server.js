@@ -80,6 +80,25 @@ const safetyCheck = (text) => {
   return toxicPattern.test(text);
 };
 
+const maskPII = (text) => {
+  if (!text) return text;
+  let maskedText = text;
+  
+  // Mask Emails
+  maskedText = maskedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[MASKED FOR PRIVACY]');
+  
+  // Mask Phone Numbers (10-14 digits, optional country code, dashes/spaces)
+  maskedText = maskedText.replace(/(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/g, '[MASKED FOR PRIVACY]');
+  
+  // Mask Social Handles
+  maskedText = maskedText.replace(/@[a-zA-Z0-9_.]+/g, '[MASKED FOR PRIVACY]');
+  
+  // Mask Social URLs
+  maskedText = maskedText.replace(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|twitter\.com|x\.com|snapchat\.com|facebook\.com)\/[a-zA-Z0-9_.-]+/gi, '[MASKED FOR PRIVACY]');
+
+  return maskedText;
+};
+
 /**
  * Calculates the affinity score between two users based on context, mood, and interest.
  */
@@ -260,9 +279,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Phase 2: Live Multilingual Chat Routing with Anti-Bullying Shield
-  socket.on('send_message', async ({ text }) => {
-    if (!text || text.trim() === '') return;
+  // Phase 2: Live Multilingual Chat Routing with Anti-Bullying Shield & PII Scrubber
+  socket.on('send_message', async ({ text: incomingText }) => {
+    if (!incomingText || incomingText.trim() === '') return;
+    
+    // 1. Scrub PII before any other processing
+    const text = maskPII(incomingText);
 
     const roomInfo = activeRooms.get(socket.id);
     if (!roomInfo) return; // User is not in an active chat
