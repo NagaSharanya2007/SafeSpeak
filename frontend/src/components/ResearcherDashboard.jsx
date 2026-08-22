@@ -4,26 +4,48 @@ import { Database, Download, AlertCircle, Sparkles } from 'lucide-react';
 export default function ResearcherDashboard() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        const res = await fetch('http://localhost:3000/api/research/reports');
-        const data = await res.json();
-        if (data.success) {
-          setReports(data.reports);
-        } else {
-          setError('Failed to load reports');
-        }
-      } catch (err) {
-        setError('Network error');
-      } finally {
-        setLoading(false);
+  const fetchReports = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/api/research/reports');
+      const data = await res.json();
+      if (data.success) {
+        setReports(data.reports);
+      } else {
+        setError('Failed to load reports');
       }
-    };
+    } catch (err) {
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchReports();
   }, []);
+
+  const handleExtract = async () => {
+    setIsExtracting(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/research/extract', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (data.processed > 0) {
+          await fetchReports();
+          alert(`Successfully extracted ${data.processed} new trends from recent chats!`);
+        } else {
+          alert("No pending chats found to extract.");
+        }
+      }
+    } catch (err) {
+      alert("Extraction failed. Make sure the backend is running.");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
 
   const handleDownload = () => {
     const jsonStr = JSON.stringify(reports, null, 2);
@@ -45,13 +67,23 @@ export default function ResearcherDashboard() {
           <h2 className="font-playfair text-3xl font-bold text-[#f6f2e9]">Data Altruism Hub</h2>
           <p className="text-[#A3C4AC] text-sm mt-1">Synthetic, zero-PII aggregated trends</p>
         </div>
-        <button 
-          onClick={handleDownload}
-          disabled={reports.length === 0}
-          className="flex items-center gap-2 rounded-xl bg-[#e8795d] px-4 py-2 font-bold text-[#101a1a] shadow-lg transition hover:bg-[#f28e73] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download size={16} /> Download Dataset
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleExtract}
+            disabled={isExtracting}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2 font-bold text-[#A3C4AC] shadow-lg transition hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles size={16} className={isExtracting ? 'animate-spin' : ''} />
+            {isExtracting ? 'Extracting...' : 'Run AI Extraction'}
+          </button>
+          <button 
+            onClick={handleDownload}
+            disabled={reports.length === 0}
+            className="flex items-center gap-2 rounded-xl bg-[#e8795d] px-4 py-2 font-bold text-[#101a1a] shadow-lg transition hover:bg-[#f28e73] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download size={16} /> Download Dataset
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -62,7 +94,7 @@ export default function ResearcherDashboard() {
         <div className="flex flex-col items-center justify-center p-16 text-center border border-dashed border-white/20 rounded-3xl bg-white/5">
           <Database size={32} className="text-[#A3C4AC] mb-4 opacity-50" />
           <p className="text-white/50">No synthetic records generated yet.</p>
-          <p className="text-xs text-white/30 mt-2">Close a chat room to trigger the LLM extraction.</p>
+          <p className="text-xs text-white/30 mt-2">Chats are safely pending. Click "Run AI Extraction" to begin.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">

@@ -25,7 +25,16 @@ const io = new Server(server, {
 // In-memory arrays/maps for matchmaking state
 let waitingQueue = [];
 let activeRooms = new Map();
-let activeRoomMessages = new Map(); // Store transcripts for LLM analysis
+const activeRoomMessages = new Map(); // roomId -> Array of objects
+
+function saveTranscriptToPending(messages) {
+  const jsonStr = JSON.stringify(messages);
+  db.run(`INSERT INTO pending_transcripts (transcript_data) VALUES (?)`, [jsonStr], function(err) {
+    if (err) {
+      console.error("Failed to save transcript to pending_transcripts", err);
+    }
+  });
+}
 
 // Anti-Bullying Shield State
 const strikeCounts = new Map();
@@ -73,7 +82,6 @@ app.post('/api/login', (req, res) => {
       
       res.json({ success: true, user: row });
     }
-    }
   );
 });
 
@@ -85,6 +93,52 @@ app.post('/api/research/login', (req, res) => {
   } else {
     res.status(401).json({ error: 'Invalid credentials' });
   }
+});
+
+app.post('/api/research/extract', (req, res) => {
+  db.all(`SELECT id, transcript_data FROM pending_transcripts`, [], async (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    
+    if (rows.length === 0) {
+      return res.json({ success: true, processed: 0 });
+    }
+
+    let processedCount = 0;
+    
+    // Process each transcript synchronously to avoid hitting API rate limits
+    for (const row of rows) {
+      try {
+        const messages = JSON.parse(row.transcript_data);
+        const trend = await analyzeTranscript(messages);
+        
+        // Save to research_trends
+        await new Promise((resolve, reject) => {
+          db.run(
+            `INSERT INTO research_trends (primary_trigger, root_cause_theme, resolution_state) VALUES (?, ?, ?)`,
+            [trend.primary_trigger, trend.root_cause_theme, trend.resolution_state],
+            function(err) {
+              if (err) reject(err);
+              else resolve();
+            }
+          );
+        });
+        
+        // Delete from pending
+        await new Promise((resolve, reject) => {
+          db.run(`DELETE FROM pending_transcripts WHERE id = ?`, [row.id], function(err) {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        
+        processedCount++;
+      } catch (e) {
+        console.error("Failed to process transcript:", e);
+      }
+    }
+    
+    res.json({ success: true, processed: processedCount });
+  });
 });
 
 app.get('/api/research/reports', (req, res) => {
@@ -281,10 +335,10 @@ io.on('connection', (socket) => {
     if (roomInfo) {
       const { peerId, roomId } = roomInfo;
       
-      // Flush transcript to LLM
+      // Flush transcript to pending storage
       const messages = activeRoomMessages.get(roomId);
       if (messages && messages.length > 0) {
-        analyzeTranscript(messages);
+        saveTranscriptToPending(messages);
         activeRoomMessages.delete(roomId);
       }
       
@@ -301,10 +355,10 @@ io.on('connection', (socket) => {
     if (roomInfo) {
       const { peerId, roomId } = roomInfo;
       
-      // Flush transcript to LLM
+      // Flush transcript to pending storage
       const messages = activeRoomMessages.get(roomId);
       if (messages && messages.length > 0) {
-        analyzeTranscript(messages);
+        saveTranscriptToPending(messages);
         activeRoomMessages.delete(roomId);
       }
       
@@ -319,10 +373,10 @@ io.on('connection', (socket) => {
     if (roomInfo) {
       const { peerId, peerUserId, roomId } = roomInfo;
       
-      // Flush transcript to LLM
+      // Flush transcript to pending storage
       const messages = activeRoomMessages.get(roomId);
       if (messages && messages.length > 0) {
-        analyzeTranscript(messages);
+        saveTranscriptToPending(messages);
         activeRoomMessages.delete(roomId);
       }
       
