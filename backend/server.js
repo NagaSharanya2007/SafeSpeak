@@ -11,6 +11,7 @@ app.use(express.json());
 const db = require('./database');
 const { translateText } = require('./services/translationService');
 const crypto = require('crypto');
+const nlp = require('compromise');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -82,19 +83,27 @@ const safetyCheck = (text) => {
 
 const maskPII = (text) => {
   if (!text) return text;
-  let maskedText = text;
   
+  const maskTag = '[cant share data due to privacy issues]';
+  
+  // Pass 1: NLP Name and Organization Detection
+  let doc = nlp(text);
+  doc.people().replaceWith(maskTag);
+  doc.organizations().replaceWith(maskTag);
+  let maskedText = doc.text();
+  
+  // Pass 2: Regex for strict formats
   // Mask Emails
-  maskedText = maskedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[MASKED FOR PRIVACY]');
+  maskedText = maskedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, maskTag);
   
   // Mask Phone Numbers (10-14 digits, optional country code, dashes/spaces)
-  maskedText = maskedText.replace(/(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/g, '[MASKED FOR PRIVACY]');
+  maskedText = maskedText.replace(/(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/g, maskTag);
   
   // Mask Social Handles
-  maskedText = maskedText.replace(/@[a-zA-Z0-9_.]+/g, '[MASKED FOR PRIVACY]');
+  maskedText = maskedText.replace(/@[a-zA-Z0-9_.]+/g, maskTag);
   
   // Mask Social URLs
-  maskedText = maskedText.replace(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|twitter\.com|x\.com|snapchat\.com|facebook\.com)\/[a-zA-Z0-9_.-]+/gi, '[MASKED FOR PRIVACY]');
+  maskedText = maskedText.replace(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|twitter\.com|x\.com|snapchat\.com|facebook\.com)\/[a-zA-Z0-9_.-]+/gi, maskTag);
 
   return maskedText;
 };
