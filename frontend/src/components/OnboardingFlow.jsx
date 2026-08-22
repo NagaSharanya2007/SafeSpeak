@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
-import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, ArrowLeft, ChevronDown, User, Phone } from 'lucide-react';
+
+const generateUUID = () => {
+  return 'user_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+};
+
+const generateAlias = () => {
+  const adjectives = ["Silent", "Warm", "Wandering", "Gentle", "Quiet", "Calm", "Breezy", "Soft", "Misty", "Autumn"];
+  const nouns = ["Pine", "Ember", "Cloud", "Leaf", "River", "Meadow", "Breeze", "Rain", "Dawn", "Willow"];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  return `${adj} ${noun}`;
+};
 
 export default function OnboardingFlow({ onProceed }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(-1); // -1: Loading, 1: Context, 2: Mood, 3: Interest
+  const [profile, setProfile] = useState(null);
+  
   const [context, setContext] = useState('');
   const [mood, setMood] = useState('');
   const [interest, setInterest] = useState('');
-  const [language, setLanguage] = useState('en'); // Default to en, matching previous logic
+  const [language, setLanguage] = useState('en');
 
   const contextOptions = ["Placements & Exams", "Loneliness", "Family Pressure", "General Anxiety"];
   
@@ -18,6 +32,15 @@ export default function OnboardingFlow({ onProceed }) {
 
   const interestOptions = ["Gaming", "Music", "Coding", "Art", "Movies"];
 
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('safeSpeak_user_profile');
+    if (savedProfile) {
+      const parsed = JSON.parse(savedProfile);
+      setProfile(parsed);
+    }
+    setStep(1);
+  }, []);
+
   const handleNext = () => {
     if (step < 3) setStep(step + 1);
   };
@@ -27,21 +50,41 @@ export default function OnboardingFlow({ onProceed }) {
   };
 
   const handleConnect = () => {
-    onProceed({ context, mood, interest, language });
+    onProceed({ 
+      context, 
+      mood, 
+      interest, 
+      language,
+      userId: profile.userId,
+      alias: profile.alias
+    });
   };
+
+  if (step === -1) return null; // Loading state
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-y-auto px-5 py-10 text-[#f6f2e9]">
       <div className="flex w-full max-w-2xl flex-col bg-white/[.03] p-8 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm">
         
-        {/* Step Indicator */}
-        <div className="flex items-center gap-2 mb-8 font-mono text-[10px] uppercase tracking-[.25em] text-[#e8795d]">
-          <span className={step >= 1 ? "text-[#F28C69]" : "text-white/30"}>01 Context</span>
-          <span className="text-white/20">-</span>
-          <span className={step >= 2 ? "text-[#F28C69]" : "text-white/30"}>02 Mood</span>
-          <span className="text-white/20">-</span>
-          <span className={step >= 3 ? "text-[#F28C69]" : "text-white/30"}>03 Interest</span>
-        </div>
+        {/* Welcome Back Toast for returning users */}
+        {profile && step === 1 && (
+          <div className="mb-6 flex items-center justify-center gap-2 rounded-xl bg-[#A3C4AC]/10 p-3 text-sm font-medium text-[#A3C4AC] border border-[#A3C4AC]/20 animate-in fade-in slide-in-from-top-2">
+            <User size={16} /> Welcome back, {profile.alias}.
+          </div>
+        )}
+
+        {/* Step Indicator (Only show for steps 1-3) */}
+        {step >= 1 && (
+          <div className="flex items-center gap-2 mb-8 font-mono text-[10px] uppercase tracking-[.25em] text-[#e8795d]">
+            <span className={step >= 1 ? "text-[#F28C69]" : "text-white/30"}>01 Context</span>
+            <span className="text-white/20">-</span>
+            <span className={step >= 2 ? "text-[#F28C69]" : "text-white/30"}>02 Mood</span>
+            <span className="text-white/20">-</span>
+            <span className={step >= 3 ? "text-[#F28C69]" : "text-white/30"}>03 Interest</span>
+          </div>
+        )}
+
+
 
         {/* STEP 1: CONTEXT */}
         {step === 1 && (
@@ -150,16 +193,18 @@ export default function OnboardingFlow({ onProceed }) {
         )}
 
         {/* Navigation Controls */}
-        <div className="mt-8 pt-6 border-t border-white/5 flex justify-between">
-          {step > 1 ? (
-            <button 
-              onClick={handleBack} 
-              className="flex items-center gap-2 text-sm font-medium text-white/50 hover:text-white transition-colors"
-            >
-              <ArrowLeft size={16} /> Back
-            </button>
-          ) : <div></div>}
-        </div>
+        {step >= 1 && (
+          <div className="mt-8 pt-6 border-t border-white/5 flex justify-between">
+            {step > 1 ? (
+              <button 
+                onClick={handleBack} 
+                className="flex items-center gap-2 text-sm font-medium text-white/50 hover:text-white transition-colors"
+              >
+                <ArrowLeft size={16} /> Back
+              </button>
+            ) : <div></div>}
+          </div>
+        )}
 
       </div>
     </div>

@@ -10,6 +10,7 @@ app.use(express.json());
 
 const db = require('./database');
 const { translateText } = require('./services/translationService');
+const crypto = require('crypto');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -26,6 +27,51 @@ let activeRooms = new Map();
 // Anti-Bullying Shield State
 const strikeCounts = new Map();
 const blockedUsers = new Set();
+
+app.post('/api/signup', (req, res) => {
+  const { username, emergencyContact } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  
+  const userId = 'user_' + crypto.randomUUID();
+  
+  db.run(
+    `INSERT INTO accounts (user_id, username, emergency_contact) VALUES (?, ?, ?)`,
+    [userId, username, emergencyContact || ''],
+    function(err) {
+      if (err) {
+        if (err.message.includes('UNIQUE')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ success: true, user: { userId, username, emergencyContact: emergencyContact || '' } });
+    }
+  );
+});
+
+app.post('/api/login', (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  
+  db.get(
+    `SELECT user_id as userId, username, emergency_contact as emergencyContact, strikes FROM accounts WHERE username = ?`,
+    [username],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!row) return res.status(404).json({ error: 'User not found' });
+      
+      // Load strikes into memory if they exist
+      if (row.strikes > 0) {
+        strikeCounts.set(row.userId, row.strikes);
+        if (row.strikes >= 5) {
+          blockedUsers.add(row.userId);
+        }
+      }
+      
+      res.json({ success: true, user: row });
+    }
+  );
+});
 
 const safetyCheck = (text) => {
   if (!text) return false;
@@ -97,12 +143,30 @@ const matchUsers = () => {
     u2.socket.join(roomId);
 
     // Track active room mapping for disconnect handling and translation routing
-    activeRooms.set(u1.id, { roomId, peerId: u2.id, language: u1.language, peerLanguage: u2.language });
-    activeRooms.set(u2.id, { roomId, peerId: u1.id, language: u2.language, peerLanguage: u1.language });
+    activeRooms.set(u1.id, { 
+      roomId, 
+      peerId: u2.id, 
+      language: u1.language, 
+      peerLanguage: u2.language,
+      userId: u1.userId,
+      alias: u1.alias,
+      peerUserId: u2.userId,
+      peerAlias: u2.alias
+    });
+    activeRooms.set(u2.id, { 
+      roomId, 
+      peerId: u1.id, 
+      language: u2.language, 
+      peerLanguage: u1.language,
+      userId: u2.userId,
+      alias: u2.alias,
+      peerUserId: u1.userId,
+      peerAlias: u1.alias
+    });
 
     // Emit matched event with room & peer's interest as the icebreaker topic
-    u1.socket.emit('matched', { roomId, topic: u2.interest, peerId: u2.id, peerLanguage: u2.language });
-    u2.socket.emit('matched', { roomId, topic: u1.interest, peerId: u1.id, peerLanguage: u1.language });
+    u1.socket.emit('matched', { roomId, topic: u2.interest, peerId: u2.id, peerLanguage: u2.language, peerAlias: u2.alias });
+    u2.socket.emit('matched', { roomId, topic: u1.interest, peerId: u1.id, peerLanguage: u1.language, peerAlias: u1.alias });
 
     // Recursively try to match remaining users
     matchUsers();
@@ -117,7 +181,10 @@ io.on('connection', (socket) => {
 
   // Matchmaking: Find a peer
   socket.on('find_peer', (data) => {
-    if (blockedUsers.has(socket.id)) {
+    let userId = data?.userId || socket.id;
+    let alias = data?.alias || 'Anonymous';
+
+    if (blockedUsers.has(userId)) {
       socket.emit('sender_restricted');
       return;
     }
@@ -126,18 +193,11 @@ io.on('connection', (socket) => {
     let mood = data?.mood || 'neutral';
     let interest = data?.interest || 'General';
     let language = data?.language || 'en';
-    
-    // Save to Database (using context as topic to preserve schema)
-    db.run(
-      `INSERT INTO users (socket_id, topic, emergency_contact) VALUES (?, ?, ?)`,
-      [socket.id, context, ''],
-      (err) => {
-        if (err) console.error("Database Insert Error:", err);
-      }
-    );
 
     const userEntry = {
       id: socket.id,
+      userId,
+      alias,
       socket: socket,
       context,
       mood,
@@ -184,12 +244,17 @@ io.on('connection', (socket) => {
   socket.on('block_user', () => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
-      const { peerId } = roomInfo;
+      const { peerId, peerUserId } = roomInfo;
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       io.to(peerId).emit('peer_disconnected');
       
-      blockedUsers.add(peerId);
+      if (peerUserId) {
+        blockedUsers.add(peerUserId);
+        strikeCounts.set(peerUserId, 5);
+        db.run(`UPDATE accounts SET strikes = 5 WHERE user_id = ?`, [peerUserId]);
+      }
+      
       const peerSocket = io.sockets.sockets.get(peerId);
       if (peerSocket) peerSocket.disconnect(true);
     }
@@ -202,7 +267,7 @@ io.on('connection', (socket) => {
     const roomInfo = activeRooms.get(socket.id);
     if (!roomInfo) return; // User is not in an active chat
 
-    const { peerId, language: myLanguage, peerLanguage } = roomInfo;
+    const { peerId, language: myLanguage, peerLanguage, userId } = roomInfo;
     
     // Attempt real-time translation
     const translatedText = await translateText(text, myLanguage, peerLanguage);
@@ -211,8 +276,11 @@ io.on('connection', (socket) => {
     const isFlagged = safetyCheck(text) || safetyCheck(translatedText);
 
     if (isFlagged) {
-      let strikes = (strikeCounts.get(socket.id) || 0) + 1;
-      strikeCounts.set(socket.id, strikes);
+      let strikes = (strikeCounts.get(userId) || 0) + 1;
+      strikeCounts.set(userId, strikes);
+      
+      // Update database strikes count
+      db.run(`UPDATE accounts SET strikes = ? WHERE user_id = ?`, [strikes, userId]);
       
       // Sender sees their own message normally (or we can inject a warning after)
       socket.emit('receive_message', { 
@@ -223,7 +291,7 @@ io.on('connection', (socket) => {
 
       if (strikes >= 5) {
         socket.emit('sender_restricted');
-        blockedUsers.add(socket.id);
+        blockedUsers.add(userId);
         
         activeRooms.delete(socket.id);
         activeRooms.delete(peerId);

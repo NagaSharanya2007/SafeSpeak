@@ -1,13 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
-import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff, ShieldAlert, Eye, DoorOpen, Ban } from 'lucide-react';
+import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff, ShieldAlert, Eye, DoorOpen, Ban, Clock } from 'lucide-react';
 
 export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages, onLeave }) {
   const [sessionId] = useState(() => Date.now());
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingMessages, setPendingMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    const handleConnect = () => setIsOnline(true);
+    const handleDisconnect = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, []);
+
+  // Auto-Sync pending messages
+  useEffect(() => {
+    if (isOnline && pendingMessages.length > 0) {
+      pendingMessages.forEach(msg => {
+        socket.emit('send_message', { text: msg.text });
+      });
+      setPendingMessages([]);
+    }
+  }, [isOnline, pendingMessages]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -27,7 +58,15 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
         const transcript = event.results[0][0].transcript;
         if (transcript.trim()) {
           // Auto-send the transcribed text
-          socket.emit('send_message', { text: transcript.trim() });
+          if (navigator.onLine && socket.connected) {
+            socket.emit('send_message', { text: transcript.trim() });
+          } else {
+            setPendingMessages(prev => [...prev, {
+              id: Date.now(),
+              text: transcript.trim(),
+              type: 'pending'
+            }]);
+          }
         }
       };
 
@@ -132,7 +171,15 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
   const handleSend = () => {
     if (!inputText.trim()) return;
     
-    socket.emit('send_message', { text: inputText.trim() });
+    if (isOnline) {
+      socket.emit('send_message', { text: inputText.trim() });
+    } else {
+      setPendingMessages(prev => [...prev, {
+        id: Date.now(),
+        text: inputText.trim(),
+        type: 'pending'
+      }]);
+    }
     setInputText('');
   };
 
@@ -170,6 +217,12 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
           <Globe2 size={12} /> Live translation from {peerLangName} <LockKeyhole size={11} className="ml-2" /> encrypted room
         </p>
       </div>
+
+      {!isOnline && (
+        <div className="sticky top-20 z-10 w-full bg-[#FDF3EB] text-[#B84A28] text-xs text-center py-1 font-medium shadow-sm animate-in fade-in slide-in-from-top-2">
+          Connection weak. Messages will send and translate automatically when online.
+        </div>
+      )}
 
       {/* Scrollable Message List */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 sm:px-[10%]">
@@ -251,6 +304,18 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
             </div>
           );
         })}
+
+        {/* Pending Offline Messages */}
+        {pendingMessages.map((msg, idx) => (
+          <div key={`pending-${msg.id}`} className="flex justify-end opacity-60">
+            <div className="max-w-[80%] rounded-2xl p-4 rounded-br-sm bg-[#e8795d] text-[#101a1a] shadow-[0_8px_25px_rgba(232,121,93,.15)]">
+              <p className="flex items-center gap-2 text-sm leading-relaxed">
+                {msg.text}
+                <Clock size={12} className="opacity-70" />
+              </p>
+            </div>
+          </div>
+        ))}
         <div ref={messagesEndRef} />
       </div>
       

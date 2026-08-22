@@ -59,7 +59,9 @@ function App() {
       context: prefs.context, 
       mood: prefs.mood, 
       interest: prefs.interest,
-      language: prefs.language
+      language: prefs.language,
+      userId: prefs.userId,
+      alias: prefs.alias
     });
   };
 
