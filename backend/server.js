@@ -29,9 +29,9 @@ const activeRoomMessages = new Map(); // roomId -> Array of objects
 
 function saveTranscriptToPending(messages) {
   const jsonStr = JSON.stringify(messages);
-  db.run(`INSERT INTO pending_transcripts (transcript_data) VALUES (?)`, [jsonStr], function(err) {
+  db.run(`INSERT INTO chat_history (transcript_data, status) VALUES (?, 'pending')`, [jsonStr], function(err) {
     if (err) {
-      console.error("Failed to save transcript to pending_transcripts", err);
+      console.error("Failed to save transcript to chat_history", err);
     }
   });
 }
@@ -96,7 +96,7 @@ app.post('/api/research/login', (req, res) => {
 });
 
 app.post('/api/research/extract', (req, res) => {
-  db.all(`SELECT id, transcript_data FROM pending_transcripts`, [], async (err, rows) => {
+  db.all(`SELECT id, transcript_data FROM chat_history WHERE status = 'pending'`, [], async (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     
     if (rows.length === 0) {
@@ -111,24 +111,16 @@ app.post('/api/research/extract', (req, res) => {
         const messages = JSON.parse(row.transcript_data);
         const trend = await analyzeTranscript(messages);
         
-        // Save to research_trends
+        // Save extracted report to chat_history and mark as processed
         await new Promise((resolve, reject) => {
           db.run(
-            `INSERT INTO research_trends (primary_trigger, root_cause_theme, resolution_state) VALUES (?, ?, ?)`,
-            [trend.primary_trigger, trend.root_cause_theme, trend.resolution_state],
+            `UPDATE chat_history SET extracted_report = ?, status = 'processed' WHERE id = ?`,
+            [JSON.stringify(trend), row.id],
             function(err) {
               if (err) reject(err);
               else resolve();
             }
           );
-        });
-        
-        // Delete from pending
-        await new Promise((resolve, reject) => {
-          db.run(`DELETE FROM pending_transcripts WHERE id = ?`, [row.id], function(err) {
-            if (err) reject(err);
-            else resolve();
-          });
         });
         
         processedCount++;
@@ -142,9 +134,18 @@ app.post('/api/research/extract', (req, res) => {
 });
 
 app.get('/api/research/reports', (req, res) => {
-  db.all(`SELECT * FROM research_trends ORDER BY created_at DESC`, [], (err, rows) => {
+  db.all(`SELECT id, transcript_data, extracted_report, created_at FROM chat_history WHERE status = 'processed' ORDER BY created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
-    res.json({ success: true, reports: rows });
+    
+    // Parse JSON strings back into objects for the frontend
+    const reports = rows.map(row => ({
+      id: row.id,
+      created_at: row.created_at,
+      transcript: JSON.parse(row.transcript_data),
+      report: JSON.parse(row.extracted_report)
+    }));
+
+    res.json({ success: true, reports });
   });
 });
 

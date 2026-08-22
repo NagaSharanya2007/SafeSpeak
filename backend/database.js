@@ -27,6 +27,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
       transcript_data TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    db.run(`CREATE TABLE IF NOT EXISTS chat_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transcript_data TEXT,
+      extracted_report TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   }
 });
 

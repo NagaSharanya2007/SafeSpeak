@@ -47,6 +47,8 @@ export default function ResearcherDashboard() {
     }
   };
 
+  const [expandedId, setExpandedId] = useState(null);
+
   const handleDownload = () => {
     const jsonStr = JSON.stringify(reports, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -60,8 +62,12 @@ export default function ResearcherDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const toggleExpand = (id) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
   return (
-    <div className="flex w-full flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 text-[#f6f2e9]">
+    <div className="flex w-full flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 text-[#f6f2e9] pb-20">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="font-playfair text-3xl font-bold text-[#f6f2e9]">Data Altruism Hub</h2>
@@ -105,25 +111,75 @@ export default function ResearcherDashboard() {
                 <th className="p-4 font-semibold">Primary Trigger</th>
                 <th className="p-4 font-semibold">Root Cause Theme</th>
                 <th className="p-4 font-semibold">Resolution State</th>
-                <th className="p-4 font-semibold">Generated At</th>
+                <th className="p-4 font-semibold text-right">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
               {reports.map((r) => (
-                <tr key={r.id} className="transition-colors hover:bg-white/5">
-                  <td className="p-4 text-white/50 font-mono text-xs">{r.id}</td>
-                  <td className="p-4 font-medium text-[#f6f2e9]">{r.primary_trigger}</td>
-                  <td className="p-4 text-[#A3C4AC]">{r.root_cause_theme}</td>
-                  <td className="p-4 text-[#F28C69]">{r.resolution_state}</td>
-                  <td className="p-4 text-white/40 text-xs">{new Date(r.created_at).toLocaleString()}</td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr className={`transition-colors hover:bg-white/5 ${expandedId === r.id ? 'bg-white/5' : ''}`}>
+                    <td className="p-4 text-white/50 font-mono text-xs">{r.id}</td>
+                    <td className="p-4 font-medium text-[#f6f2e9]">{r.report?.primary_trigger || "Unknown"}</td>
+                    <td className="p-4 text-[#A3C4AC]">{r.report?.root_cause_theme || "Unknown"}</td>
+                    <td className="p-4 text-[#F28C69]">{r.report?.resolution_state || "Unknown"}</td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => toggleExpand(r.id)}
+                        className="text-xs border border-white/20 px-3 py-1 rounded-full hover:bg-white/10 transition"
+                      >
+                        {expandedId === r.id ? 'Hide' : 'Expand'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedId === r.id && (
+                    <tr className="bg-white/5">
+                      <td colSpan="5" className="p-6 border-t border-white/5">
+                        <div className="grid grid-cols-2 gap-8">
+                          {/* AI Detailed Report */}
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="text-xs font-mono text-[#A3C4AC] uppercase tracking-widest mb-2">AI Clinical Summary</h4>
+                              <p className="text-sm text-white/80 leading-relaxed bg-black/20 p-4 rounded-xl border border-white/5">
+                                {r.report?.detailed_summary || "No detailed summary available."}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-white/40">
+                              <span>Generated At: {new Date(r.created_at).toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          {/* Raw Transcript */}
+                          <div>
+                            <h4 className="text-xs font-mono text-[#A3C4AC] uppercase tracking-widest mb-2 flex items-center justify-between">
+                              <span>Masked Transcript</span>
+                              <span className="text-[10px] bg-[#A3C4AC]/20 text-[#A3C4AC] px-2 py-1 rounded-full">ZERO-PII</span>
+                            </h4>
+                            <div className="bg-black/40 p-4 rounded-xl border border-white/5 h-64 overflow-y-auto space-y-3 font-mono text-xs">
+                              {r.transcript && r.transcript.map((msg, idx) => (
+                                <div key={idx} className={`flex ${msg.role === 'User' ? 'justify-end' : 'justify-start'}`}>
+                                  <div className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === 'User' ? 'bg-[#A3C4AC]/20 text-[#A3C4AC]' : 'bg-white/10 text-white/80'}`}>
+                                    <div className="text-[9px] opacity-50 mb-1">{msg.role}</div>
+                                    <div>{msg.text}</div>
+                                  </div>
+                                </div>
+                              ))}
+                              {(!r.transcript || r.transcript.length === 0) && (
+                                <div className="text-white/30 text-center py-4">Transcript data unavailable</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
         </div>
       )}
       
-      <div className="mt-6 flex items-center justify-center gap-2 font-mono text-[10px] uppercase tracking-[.1em] text-[#A3C4AC]/70">
+      <div className="mt-8 flex items-center justify-center gap-2 font-mono text-[10px] uppercase tracking-[.1em] text-[#A3C4AC]/70">
         <Sparkles size={12} /> Powered by Gemini AI
       </div>
     </div>
