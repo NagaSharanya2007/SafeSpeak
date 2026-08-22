@@ -125,6 +125,12 @@ const maskPII = (text) => {
   // Mask Social URLs
   maskedText = maskedText.replace(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|twitter\.com|x\.com|snapchat\.com|facebook\.com)\/[a-zA-Z0-9_.-]+/gi, maskTag);
 
+  // Pass 3: Fallback Regex for Introductions & Credentials (catches names not in NLP dict)
+  maskedText = maskedText.replace(/(my name is\s+|i am\s+|i'm\s+|call me\s+|this is\s+)([a-z]+)/gi, `$1${maskTag}`);
+  
+  // Catch explicit sharing of usernames or passwords
+  maskedText = maskedText.replace(/(my password is\s+|my username is\s+|password:\s+|username:\s+)(\S+)/gi, `$1${maskTag}`);
+
   return maskedText;
 };
 
