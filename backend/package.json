@@ -8,11 +8,14 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@google/genai": "^2.18.0",
     "axios": "^1.6.0",
+    "compromise": "^14.16.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "natural": "^8.1.1",
+    "nodemailer": "^9.0.5",
     "socket.io": "^4.7.2",
     "sqlite3": "^6.0.1"
   },

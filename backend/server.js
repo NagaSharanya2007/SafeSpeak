@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const crypto = require('crypto');
+const nlp = require('compromise');
 
 const app = express();
 app.use(cors());
@@ -13,8 +15,19 @@ const { translateText } = require('./services/translationService');
 const { checkHarmfulContent, checkSuicideRisk } = require('./services/safetyService');
 const { notifyEmergencyContact } = require('./services/emergencyService');
 const { generateEmpathyResponse } = require('./services/aiCopilotService');
+let analyzeTranscript = null;
+try {
+  const daService = require('./services/DataAltruismService');
+  analyzeTranscript = daService.analyzeTranscript;
+} catch (e) {
+  // Optional DataAltruismService fallback
+}
 
-// HTTP API endpoint for Empathy Copilot (uses Google AI API)
+// ----------------------------------------------------------------------------
+// HTTP API Endpoints
+// ----------------------------------------------------------------------------
+
+// 1. Empathy Copilot (Google Gemini AI API)
 app.post('/api/copilot/chat', async (req, res) => {
   try {
     const { message, history } = req.body;
@@ -26,30 +39,114 @@ app.post('/api/copilot/chat', async (req, res) => {
   }
 });
 
+// 2. User Authentication & Account APIs
+app.post('/api/signup', (req, res) => {
+  const { username, emergencyContact } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  
+  const userId = 'user_' + crypto.randomUUID();
+  
+  db.run(
+    `INSERT INTO accounts (user_id, username, emergency_contact) VALUES (?, ?, ?)`,
+    [userId, username, emergencyContact || ''],
+    function(err) {
+      if (err) {
+        if (err.message && err.message.includes('UNIQUE')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ success: true, user: { userId, username, emergencyContact: emergencyContact || '' } });
+    }
+  );
+});
 
+app.post('/api/login', (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  
+  db.get(
+    `SELECT user_id as userId, username, emergency_contact as emergencyContact, strikes FROM accounts WHERE username = ?`,
+    [username],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!row) return res.status(404).json({ error: 'User not found' });
+      
+      if (row.strikes > 0) {
+        strikeCounts.set(row.userId, row.strikes);
+        if (row.strikes >= 5) {
+          blockedUsers.add(row.userId);
+        }
+      }
+      
+      res.json({ success: true, user: row });
+    }
+  );
+});
+
+// 3. Researcher Portal APIs
+app.post('/api/research/login', (req, res) => {
+  const { email, password } = req.body;
+  if (email === 'admin@safespeak.org' && password === 'password') {
+    res.json({ success: true, token: 'researcher-jwt-mock' });
+  } else {
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
+
+app.get('/api/research/reports', (req, res) => {
+  db.all(`SELECT * FROM research_trends ORDER BY created_at DESC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    res.json({ success: true, reports: rows });
+  });
+});
+
+// ----------------------------------------------------------------------------
+// PII Masking Utility
+// ----------------------------------------------------------------------------
+const maskPII = (text) => {
+  if (!text) return text;
+  const maskTag = '[cant share data due to privacy issues]';
+  
+  try {
+    let doc = nlp(text);
+    doc.people().replaceWith(maskTag);
+    doc.organizations().replaceWith(maskTag);
+    let maskedText = doc.text();
+    
+    maskedText = maskedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, maskTag);
+    maskedText = maskedText.replace(/(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/g, maskTag);
+    maskedText = maskedText.replace(/@[a-zA-Z0-9_.]+/g, maskTag);
+    maskedText = maskedText.replace(/(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|twitter\.com|x\.com|snapchat\.com|facebook\.com)\/[a-zA-Z0-9_.-]+/gi, maskTag);
+    maskedText = maskedText.replace(/(my name is\s+|i am\s+|i'm\s+|call me\s+|this is\s+)([a-z]+)/gi, `$1${maskTag}`);
+    maskedText = maskedText.replace(/(my password is\s+|my username is\s+|password:\s+|username:\s+)(\S+)/gi, `$1${maskTag}`);
+    return maskedText;
+  } catch (e) {
+    return text;
+  }
+};
+
+// ----------------------------------------------------------------------------
+// Matchmaking & Socket Server
+// ----------------------------------------------------------------------------
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins for dev
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
 
-// In-memory state for matchmaking and safety
 let waitingQueue = [];
 let activeRooms = new Map();
+let activeRoomMessages = new Map();
 const strikeCounts = new Map();
 const blockedUsers = new Set();
 const blockedPairs = new Set();
 const emergencySentRooms = new Set();
 
-
-/**
- * Calculates the affinity score between two users based on context, mood, and interest.
- */
 const calculateScore = (userA, userB) => {
   let score = 0;
-  
   if (userA.context === userB.context) score += 50;
 
   const m1 = userA.mood;
@@ -66,13 +163,9 @@ const calculateScore = (userA, userB) => {
   }
 
   if (userA.interest === userB.interest) score += 10;
-
   return score;
 };
 
-/**
- * Checks if two users have blocked each other.
- */
 const isPairBlocked = (id1, id2) => {
   return blockedPairs.has(`${id1}:${id2}`) || 
          blockedPairs.has(`${id2}:${id1}`) ||
@@ -80,9 +173,6 @@ const isPairBlocked = (id1, id2) => {
          blockedUsers.has(id2);
 };
 
-/**
- * Attempts to match users in the waitingQueue using a greedy weighted graph approach.
- */
 const matchUsers = () => {
   if (waitingQueue.length < 2) return;
 
@@ -94,12 +184,9 @@ const matchUsers = () => {
       const u1 = waitingQueue[i];
       const u2 = waitingQueue[j];
 
-      // Exclude blocked users from matching together
       if (isPairBlocked(u1.id, u2.id)) continue;
 
       const score = calculateScore(u1, u2);
-      
-      // Valid score must be > 20
       if (score > 20 && score > bestScore) {
         bestScore = score;
         bestPair = { i, j, u1, u2 };
@@ -109,8 +196,6 @@ const matchUsers = () => {
 
   if (bestPair) {
     const { i, j, u1, u2 } = bestPair;
-    
-    // Remove both from queue (highest index first)
     waitingQueue.splice(Math.max(i, j), 1);
     waitingQueue.splice(Math.min(i, j), 1);
 
@@ -119,32 +204,38 @@ const matchUsers = () => {
     u1.socket.join(roomId);
     u2.socket.join(roomId);
 
-    // Track active room mapping for disconnect handling, translation routing, and emergency contact
     activeRooms.set(u1.id, { 
       roomId, 
       peerId: u2.id, 
       language: u1.language, 
       peerLanguage: u2.language,
-      emergencyContact: u1.emergencyContact 
+      emergencyContact: u1.emergencyContact,
+      userId: u1.userId,
+      alias: u1.alias,
+      peerUserId: u2.userId,
+      peerAlias: u2.alias
     });
+
     activeRooms.set(u2.id, { 
       roomId, 
       peerId: u1.id, 
       language: u2.language, 
       peerLanguage: u1.language,
-      emergencyContact: u2.emergencyContact 
+      emergencyContact: u2.emergencyContact,
+      userId: u2.userId,
+      alias: u2.alias,
+      peerUserId: u1.userId,
+      peerAlias: u1.alias
     });
 
-    // Emit matched event with room & peer's interest as the icebreaker topic
-    u1.socket.emit('matched', { roomId, topic: u2.interest, peerId: u2.id, peerLanguage: u2.language });
-    u2.socket.emit('matched', { roomId, topic: u1.interest, peerId: u1.id, peerLanguage: u1.language });
+    u1.socket.emit('matched', { roomId, topic: u2.interest, peerId: u2.id, peerLanguage: u2.language, peerAlias: u2.alias });
+    u2.socket.emit('matched', { roomId, topic: u1.interest, peerId: u1.id, peerLanguage: u1.language, peerAlias: u1.alias });
 
-    // Recursively try to match remaining users
+    activeRoomMessages.set(roomId, []);
     matchUsers();
   }
 };
 
-// Matchmaking execution loop
 setInterval(matchUsers, 3000);
 
 io.on('connection', (socket) => {
@@ -152,7 +243,10 @@ io.on('connection', (socket) => {
 
   // Matchmaking: Find a peer
   socket.on('find_peer', (data) => {
-    if (blockedUsers.has(socket.id)) {
+    let userId = data?.userId || socket.id;
+    let alias = data?.alias || 'Anonymous';
+
+    if (blockedUsers.has(userId)) {
       socket.emit('sender_restricted');
       return;
     }
@@ -163,7 +257,6 @@ io.on('connection', (socket) => {
     let language = data?.language || 'en';
     let emergencyContact = data?.emergencyContact || '';
     
-    // Save to Database (using context as topic to preserve schema)
     db.run(
       `INSERT INTO users (socket_id, topic, emergency_contact) VALUES (?, ?, ?)`,
       [socket.id, context, emergencyContact],
@@ -174,6 +267,8 @@ io.on('connection', (socket) => {
 
     const userEntry = {
       id: socket.id,
+      userId,
+      alias,
       socket: socket,
       context,
       mood,
@@ -194,30 +289,30 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle sudden disconnections
+  // Disconnection cleanup
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    
-    // Disconnect Cleanup: Remove from waitingQueue if they haven't matched yet
     const qIndex = waitingQueue.findIndex(u => u.id === socket.id);
     if (qIndex !== -1) {
       waitingQueue.splice(qIndex, 1);
     }
 
-    // Abandoned Match: If they were in an active chat, alert the peer
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
       const { peerId, roomId } = roomInfo;
+      const messages = activeRoomMessages.get(roomId);
+      if (messages && messages.length > 0 && analyzeTranscript) {
+        analyzeTranscript(messages);
+        activeRoomMessages.delete(roomId);
+      }
+
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       if (roomId) emergencySentRooms.delete(roomId);
-      
-      // Notify remaining peer that their partner left
       io.to(peerId).emit('peer_disconnected');
     }
   });
 
-  // User explicitly disconnects temporarily ("Disconnect for now")
   socket.on('disconnect_peer', () => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
@@ -234,6 +329,11 @@ io.on('connection', (socket) => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
       const { peerId, roomId } = roomInfo;
+      const messages = activeRoomMessages.get(roomId);
+      if (messages && messages.length > 0 && analyzeTranscript) {
+        analyzeTranscript(messages);
+        activeRoomMessages.delete(roomId);
+      }
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       if (roomId) emergencySentRooms.delete(roomId);
@@ -241,19 +341,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  // User permanently blocks their chat partner
   socket.on('block_peer', () => {
     const roomInfo = activeRooms.get(socket.id);
     if (roomInfo) {
-      const { peerId, roomId } = roomInfo;
+      const { peerId, peerUserId, roomId } = roomInfo;
       activeRooms.delete(socket.id);
       activeRooms.delete(peerId);
       if (roomId) emergencySentRooms.delete(roomId);
       
-      // Record persistent block
       blockedPairs.add(`${socket.id}:${peerId}`);
       blockedPairs.add(`${peerId}:${socket.id}`);
 
+      if (peerUserId) {
+        blockedUsers.add(peerUserId);
+        strikeCounts.set(peerUserId, 5);
+        db.run(`UPDATE accounts SET strikes = 5 WHERE user_id = ?`, [peerUserId]);
+      }
 
       db.run(
         `INSERT INTO blocked_users (user_id, blocked_id) VALUES (?, ?)`,
@@ -263,15 +366,15 @@ io.on('connection', (socket) => {
         }
       );
 
-      // Notify peer that conversation has ended
       io.to(peerId).emit('peer_disconnected');
+      const peerSocket = io.sockets.sockets.get(peerId);
+      if (peerSocket) peerSocket.disconnect(true);
     }
     socket.emit('blocked_success');
   });
 
-  // Real-time Copilot Chat handler (uses Google AI API)
+  // Empathy Copilot AI Socket Handler (Google Gemini AI API)
   socket.on('copilot_chat', async ({ message, history }, callback) => {
-
     try {
       const responseText = await generateEmpathyResponse(history || [], message || '');
       if (typeof callback === 'function') {
@@ -286,8 +389,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Manual emergency escalation trigger
-
+  // Manual emergency trigger
   socket.on('trigger_emergency', async () => {
     const roomInfo = activeRooms.get(socket.id);
     const emergencyContact = roomInfo?.emergencyContact || '';
@@ -305,25 +407,29 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Live Multilingual Chat Routing with Safety & Suicide Risk Layers
-  socket.on('send_message', async ({ text }) => {
-    if (!text || text.trim() === '') return;
-
+  // Live Multilingual Chat Routing with Safety, Suicide Risk, & Anti-Bullying
+  socket.on('send_message', async ({ text: incomingText }) => {
+    if (!incomingText || incomingText.trim() === '') return;
+    
+    const text = maskPII(incomingText);
     const roomInfo = activeRooms.get(socket.id);
-    if (!roomInfo) return; // User is not in an active chat
+    if (!roomInfo) return;
 
-    const { peerId, language: myLanguage, peerLanguage, emergencyContact } = roomInfo;
+    const { peerId, language: myLanguage, peerLanguage, emergencyContact, roomId, alias } = roomInfo;
     const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     
-    // 1. Existing Real-time Translation
+    const msgs = activeRoomMessages.get(roomId);
+    if (msgs) msgs.push(`${alias || 'User'}: ${text}`);
+
+    // 1. Multilingual Translation
     const translatedText = await translateText(text, myLanguage, peerLanguage);
 
-    // 2. Suicide Risk & Self-Harm Safety Layer (LOW, MEDIUM / CONCERNING, HIGH_IMMINENT)
+    // 2. Suicide Risk & Self-Harm Safety Layer (LOW, MEDIUM, HIGH / IMMINENT)
     const suicideRisk = checkSuicideRisk(text, translatedText);
     
     if (suicideRisk.riskLevel === 'HIGH_IMMINENT') {
       const alreadySent = emergencySentRooms.has(roomInfo.roomId);
-      let dispatchResult = { success: false, status: 'NOT_CONFIGURED', mode: 'demo_not_configured' };
+      let dispatchResult = { success: true, status: 'SENT', mode: 'escalation_active' };
 
       if (!alreadySent) {
         emergencySentRooms.add(roomInfo.roomId);
@@ -344,8 +450,7 @@ io.on('connection', (socket) => {
         dispatchError: dispatchResult.error || null,
         hasEmergencyContact: !!(emergencyContact && emergencyContact.trim())
       });
-    }
- else if (suicideRisk.riskLevel === 'CONCERNING') {
+    } else if (suicideRisk.riskLevel === 'CONCERNING') {
       // Trigger supportive intervention: Empathy Copilot actively steps in
       socket.emit('suicide_risk_concern', {
         messageId,
@@ -355,15 +460,13 @@ io.on('connection', (socket) => {
         hasEmergencyContact: !!(emergencyContact && emergencyContact.trim())
       });
     } else if (suicideRisk.riskLevel === 'LOW') {
-      // Trigger mild supportive prompt
+      // Trigger mild supportive card
       socket.emit('suicide_risk_low', {
         messageId,
         riskLevel: 'LOW',
         reason: suicideRisk.reason
       });
     }
-
-
 
     // 3. Harmful & Bullying Detection Layer
     const harmfulResult = checkHarmfulContent(text, translatedText);
@@ -372,7 +475,6 @@ io.on('connection', (socket) => {
       const currentStrikes = (strikeCounts.get(socket.id) || 0) + 1;
       strikeCounts.set(socket.id, currentStrikes);
       
-      // Sender receives message marked as flagged + sender warning notification
       socket.emit('receive_message', { 
         id: messageId,
         senderId: socket.id, 
@@ -390,7 +492,6 @@ io.on('connection', (socket) => {
         reason: harmfulResult.reason
       });
 
-      // Recipient receives message HIDDEN by default with harmful flag
       io.to(peerId).emit('receive_message', {
         id: messageId,
         senderId: socket.id,
@@ -401,7 +502,6 @@ io.on('connection', (socket) => {
         harmCategory: harmfulResult.category
       });
 
-      // Emit flagged intercept for receiver alert popup
       io.to(peerId).emit('flagged_intercept', {
         messageId,
         senderId: socket.id,

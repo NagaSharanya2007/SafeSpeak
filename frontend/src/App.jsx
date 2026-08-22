@@ -60,9 +60,12 @@ function App() {
       mood: prefs.mood, 
       interest: prefs.interest,
       language: prefs.language,
-      emergencyContact: prefs.emergencyContact || ''
+      emergencyContact: prefs.emergencyContact || '',
+      userId: prefs.userId,
+      alias: prefs.alias
     });
   };
+
 
 
   const handleCancelWait = () => {

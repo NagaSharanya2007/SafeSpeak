@@ -13,7 +13,8 @@ import {
   LogOut, 
   Ban, 
   PhoneCall, 
-  HeartHandshake 
+  HeartHandshake,
+  Clock
 } from 'lucide-react';
 
 import HarmfulMessageAlert from './safety/HarmfulMessageAlert';
@@ -29,12 +30,14 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
   const [sessionId] = useState(() => Date.now());
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingMessages, setPendingMessages] = useState([]);
   
   // Safety & Intervention State
   const [activeHarmfulMessageId, setActiveHarmfulMessageId] = useState(null);
   const [revealedMessageIds, setRevealedMessageIds] = useState(new Set());
-  const [senderWarning, setSenderWarning] = useState(null); // { warningLevel, reason }
-  const [highRiskAlert, setHighRiskAlert] = useState(null); // { dispatchStatus, reason, hasEmergencyContact }
+  const [senderWarning, setSenderWarning] = useState(null);
+  const [highRiskAlert, setHighRiskAlert] = useState(null);
   const [showLowRiskCard, setShowLowRiskCard] = useState(false);
   const [showCopilot, setShowCopilot] = useState(false);
   const [showCrisisHelp, setShowCrisisHelp] = useState(false);
@@ -47,13 +50,23 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
   const inputRef = useRef(null);
 
   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
       
-      // Set the recognition language so it captures Hindi/Telugu correctly
       if (userLanguage === 'te') recognition.lang = 'te-IN';
       else if (userLanguage === 'hi') recognition.lang = 'hi-IN';
       else recognition.lang = 'en-US';
@@ -63,7 +76,15 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         if (transcript.trim()) {
-          socket.emit('send_message', { text: transcript.trim() });
+          if (navigator.onLine && socket.connected) {
+            socket.emit('send_message', { text: transcript.trim() });
+          } else {
+            setPendingMessages(prev => [...prev, {
+              id: Date.now(),
+              text: transcript.trim(),
+              type: 'pending'
+            }]);
+          }
         }
       };
 
@@ -95,7 +116,6 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
     const handleReceive = (message) => {
       setMessages((prev) => [...prev, message]);
       
-      // If harmful message received from peer, trigger receiver safety popup
       if (message.isHarmful && message.senderId !== socket.id) {
         setActiveHarmfulMessageId(message.id);
       }
@@ -127,7 +147,6 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
         hasEmergencyContact: data.hasEmergencyContact || !!(emergencyContact && emergencyContact.trim())
       });
     };
-
 
     // 3. LOW RISK: Small supportive non-intrusive card
     const handleSuicideLow = (data) => {
@@ -177,7 +196,7 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, showLowRiskCard]);
+  }, [messages, showLowRiskCard, pendingMessages]);
 
   // Save chat history to localStorage
   useEffect(() => {
@@ -208,7 +227,15 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
   const handleSend = () => {
     if (!inputText.trim()) return;
     
-    socket.emit('send_message', { text: inputText.trim() });
+    if (navigator.onLine && socket.connected) {
+      socket.emit('send_message', { text: inputText.trim() });
+    } else {
+      setPendingMessages(prev => [...prev, {
+        id: Date.now(),
+        text: inputText.trim(),
+        type: 'pending'
+      }]);
+    }
     setInputText('');
   };
 
@@ -261,7 +288,7 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
         />
       )}
 
-      {/* 3. HIGH RISK SAFETY INTERVENTION MODAL (Automatic Escalation Confirmed) */}
+      {/* 3. HIGH RISK SAFETY INTERVENTION MODAL */}
       {highRiskAlert && (
         <SuicideRiskAlert
           riskLevel="HIGH_IMMINENT"
@@ -280,8 +307,7 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
         />
       )}
 
-
-      {/* 4. EMPATHY COPILOT MODAL (Active conversation on Medium risk or manual trigger) */}
+      {/* 4. EMPATHY COPILOT MODAL */}
       {showCopilot && (
         <EmpathyCopilotModal
           onClose={() => setShowCopilot(false)}
@@ -398,7 +424,6 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
                 ) : (
                   /* 2. REVEALED OR NORMAL MESSAGE */
                   <>
-                    {/* Subtle warning label if revealed harmful content */}
                     {isHarmful && (
                       <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-[#e8795d]">
                         <AlertTriangle size={13} />
@@ -406,10 +431,8 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
                       </div>
                     )}
 
-                    {/* Primary Text */}
                     <p className="text-sm leading-relaxed">{msg.translatedText || msg.originalText}</p>
                     
-                    {/* Original Text Subtitle if translated */}
                     {!isMe && msg.originalText && msg.translatedText && msg.originalText !== msg.translatedText && (
                       <p className="mt-2 border-t border-black/10 pt-1 text-[10px] italic opacity-70">
                         Original: {msg.originalText}
@@ -422,7 +445,19 @@ export default function ChatRoom({ peerInfo, userLanguage, emergencyContact = ''
           );
         })}
 
-        {/* LOW RISK SUPPORTIVE CARD: Rendered in chat flow if low risk detected */}
+        {/* Pending Offline Messages */}
+        {pendingMessages.map((msg) => (
+          <div key={`pending-${msg.id}`} className="flex justify-end opacity-60">
+            <div className="max-w-[80%] rounded-2xl p-4 rounded-br-sm bg-[#e8795d] text-[#101a1a] shadow-[0_8px_25px_rgba(232,121,93,.15)]">
+              <p className="flex items-center gap-2 text-sm leading-relaxed">
+                {msg.text}
+                <Clock size={12} className="opacity-70" />
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {/* LOW RISK SUPPORTIVE CARD */}
         {showLowRiskCard && (
           <LowRiskSupportCard
             onOpenCopilot={() => {

@@ -7,11 +7,19 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.error('Error opening database', err);
   } else {
     console.log('Connected to SQLite database.');
-    db.run(`CREATE TABLE IF NOT EXISTS users (
+    db.run(`CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      socket_id TEXT,
-      topic TEXT,
+      user_id TEXT UNIQUE,
+      username TEXT UNIQUE,
       emergency_contact TEXT,
+      strikes INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS research_trends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      primary_trigger TEXT,
+      root_cause_theme TEXT,
+      resolution_state TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
     db.run(`CREATE TABLE IF NOT EXISTS blocked_users (

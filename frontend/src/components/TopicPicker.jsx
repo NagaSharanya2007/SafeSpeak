@@ -75,20 +75,21 @@ export default function TopicPicker({ onProceed }) {
           />
         </div>
 
-        <div className="mb-6 reveal reveal-delay-2">
+        <div className="mb-8 reveal reveal-delay-2">
           <label className="mb-3 ml-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[#b7c5b4]">
-            <span>Emergency Contact:</span>
+            <span>Emergency Contact Phone Number:</span>
             <span className="mr-2 rounded border border-white/10 px-2 py-0.5 text-[10px] font-normal tracking-normal text-[#70817a]">Optional</span>
           </label>
           <input
             type="tel"
-            placeholder="e.g., +1 555-0123"
+            placeholder="e.g., +91 9876543210"
             value={emergencyContact}
             onChange={(e) => setEmergencyContact(e.target.value)}
             className="w-full rounded-2xl border border-white/10 bg-white/[.04] px-5 py-4 text-[#f6f2e9] outline-none transition focus:border-[#e8795d] placeholder:text-[#70817a]"
           />
-          <p className="ml-1 mt-2 flex items-center gap-1 text-xs text-[#70817a]"><LockKeyhole size={12} /> Only used if you choose to share it.</p>
+          <p className="ml-1 mt-2 flex items-center gap-1 text-xs text-[#70817a]"><LockKeyhole size={12} /> Dispatches instant SMS safety alert to registered phone if acute crisis is detected.</p>
         </div>
+
 
         <div className="mb-10 reveal reveal-delay-3">
           <label className="mb-3 ml-1 block text-xs font-semibold uppercase tracking-wider text-[#b7c5b4]">
