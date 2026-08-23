@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
 import { CheckCheck, Globe2, LockKeyhole, Send, Sparkles, Mic, MicOff, ShieldAlert, Eye, DoorOpen, Ban, Clock } from 'lucide-react';
+import SenderWarningModal from './safety/SenderWarningModal';
+import HarmfulMessageAlert from './safety/HarmfulMessageAlert';
+import BlockModal from './safety/BlockModal';
 
 export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages, onLeave }) {
   const [sessionId] = useState(() => Date.now());
@@ -8,6 +11,13 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
   const [isListening, setIsListening] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingMessages, setPendingMessages] = useState([]);
+  
+  // Safety Modal States
+  const [senderWarning, setSenderWarning] = useState(null); // { strikeCount }
+  const [harmfulIntercept, setHarmfulIntercept] = useState(null); // { originalText, translatedText, senderId }
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockedSuccess, setBlockedSuccess] = useState(false);
+
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -100,10 +110,7 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
     };
     // Anti-Bullying Listeners
     const handleSenderWarning = (data) => {
-      setMessages(prev => [...prev, {
-        type: 'warning',
-        text: `⚠️ This message violates our safety guidelines. Please reconsider how you speak to your peer. (Warning ${data.strikeCount} of 5). Upon 5 warnings, you will be restricted.`
-      }]);
+      setSenderWarning({ strikeCount: data.strikeCount });
     };
 
     const handleSenderRestricted = () => {
@@ -114,13 +121,11 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
     };
 
     const handleFlaggedIntercept = (data) => {
-      setMessages(prev => [...prev, {
-        type: 'intercepted',
+      setHarmfulIntercept({
         senderId: data.senderId,
         originalText: data.originalText,
-        translatedText: data.translatedText,
-        revealed: false
-      }]);
+        translatedText: data.translatedText
+      });
     };
 
     socket.on('receive_message', handleReceive);
@@ -200,14 +205,70 @@ export default function ChatRoom({ peerInfo, userLanguage, messages, setMessages
     if (onLeave) onLeave();
   };
 
-  const handleBlockUser = () => {
-    socket.emit('block_user');
-    if (onLeave) onLeave();
+  const handleBlockPeer = () => {
+      socket.emit('block_user');
+      setShowBlockModal(false);
+      setHarmfulIntercept(null);
+      setBlockedSuccess(true);
+      setTimeout(() => {
+        onLeave();
+      }, 2000);
+  };
+
+  const revealIntercepted = (idx) => {
+    setMessages(prev => prev.map((msg, i) => i === idx ? { ...msg, revealed: true } : msg));
   };
 
   return (
     <div className="app-shell relative flex h-full w-full max-w-5xl flex-col text-[#f6f2e9]">
-      {/* Sticky Header */}
+      
+      {/* Safety Modals */}
+      {senderWarning && (
+        <SenderWarningModal 
+          warningLevel={senderWarning.strikeCount}
+          onEditMessage={() => setSenderWarning(null)}
+          onAcknowledge={() => setSenderWarning(null)}
+        />
+      )}
+
+      {harmfulIntercept && (
+        <HarmfulMessageAlert 
+          onShowMessage={() => {
+            setMessages(prev => [...prev, {
+              type: 'intercepted',
+              senderId: harmfulIntercept.senderId,
+              originalText: harmfulIntercept.originalText,
+              translatedText: harmfulIntercept.translatedText,
+              revealed: true
+            }]);
+            setHarmfulIntercept(null);
+          }}
+          onDisconnect={() => {
+            setHarmfulIntercept(null);
+            onLeave();
+          }}
+          onBlock={() => setShowBlockModal(true)}
+        />
+      )}
+
+      {showBlockModal && (
+        <BlockModal 
+          onCancel={() => setShowBlockModal(false)}
+          onConfirm={handleBlockPeer}
+        />
+      )}
+
+      {blockedSuccess && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#101a1a]/90 backdrop-blur-md">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-[#91bb8e]/20 text-[#91bb8e] mb-4">
+             <Ban size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-[#f6f2e9] mb-2">User Blocked</h2>
+          <p className="text-[#A3C4AC]">You will no longer be paired with this user. Disconnecting...</p>
+        </div>
+      )}
+
+      {/* Connection Status & Topic Header */}
       <div className="glass-panel sticky top-0 z-10 flex flex-col items-center border-x-0 border-t-0 p-4 text-center">
         <p className="mb-1 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[.18em] text-[#e8795d]">
           <Sparkles size={12} />
