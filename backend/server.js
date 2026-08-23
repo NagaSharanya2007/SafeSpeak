@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // Restarting to clear blocked memory
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -240,6 +240,8 @@ const calculateScore = (userA, userB) => {
 const matchUsers = () => {
   if (waitingQueue.length < 2) return;
 
+  console.log(`[DEBUG] matchUsers running, queue length: ${waitingQueue.length}`);
+
   let bestPair = null;
   let bestScore = -Infinity;
 
@@ -249,6 +251,7 @@ const matchUsers = () => {
       const u2 = waitingQueue[j];
 
       const score = calculateScore(u1, u2);
+      console.log(`[DEBUG] Comparing ${u1.id} and ${u2.id} -> score: ${score}`);
       
       // Valid score must be > 20
       if (score > 20 && score > bestScore) {
@@ -312,6 +315,7 @@ io.on('connection', (socket) => {
 
   // Matchmaking: Find a peer
   socket.on('find_peer', (data) => {
+    console.log(`[DEBUG] find_peer called for socket ${socket.id}`, data);
     let userId = data?.userId || socket.id;
     let alias = data?.alias || 'Anonymous';
 
@@ -337,7 +341,10 @@ io.on('connection', (socket) => {
       joinTime: Date.now()
     };
 
+    console.log(`[DEBUG] queue length before push: ${waitingQueue.length}`);
     waitingQueue.push(userEntry);
+    console.log(`[DEBUG] queue length after push: ${waitingQueue.length}`);
+    matchUsers(); // Trigger match instantly
   });
 
   // Handle sudden disconnections
